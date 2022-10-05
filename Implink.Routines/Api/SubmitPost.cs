@@ -23,10 +23,10 @@ namespace KuiperZone.Implink.Routines.Api;
 /// <summary>
 /// The POST submit message body.
 /// </summary>
-public class SubmitPost : JsonBody
+public class SubmitPost : JsonSerializable
 {
     /// <summary>
-    /// Gets or sets the message ID. If specified, should be a unique string possibly composed of the
+    /// Gets or sets the message ID. If specified, it should be a unique string possibly composed of the
     /// user name ID and random or high precision time value. If omitted, the receiver will generate
     /// one itself.
     /// </summary>
@@ -34,7 +34,7 @@ public class SubmitPost : JsonBody
 
     /// <summary>
     /// Gets or sets the parent message ID. If empty, this is a top-level post. If specified,
-    /// this is reply to an existing message, which must exist on the destination.
+    /// this isa  reply to an existing message, which must exist on the destination.
     /// </summary>
     public string? ParentId { get; set; }
 

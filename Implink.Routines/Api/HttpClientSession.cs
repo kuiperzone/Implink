@@ -27,7 +27,7 @@ namespace KuiperZone.Implink.Routines.Api;
 /// Abstract base class which extends <see cref="ClientSession"/> to implement an internal
 /// <see cref="HttpClient"/> instance. It does not, however, implement the API conversion.
 /// </summary>
-public abstract class HttpSession : ClientSession
+public abstract class HttpClientSession : ClientSession
 {
     private readonly HttpClient _client = HttpClientFactory.Create();
     private int _sendCounter;
@@ -36,7 +36,7 @@ public abstract class HttpSession : ClientSession
     /// <summary>
     /// Constructor. If factory is null, the instance will have no signer.
     /// </summary>
-    public HttpSession(IReadOnlyOutboundRoute profile, ISignerFactory? factory, string? contentType = null)
+    public HttpClientSession(IReadOnlyClientProfile profile, ISignerFactory? factory, string? contentType = null)
         : base(profile)
     {
         // https://stackoverflow.com/questions/23438416/why-is-httpclient-baseaddress-not-working
@@ -94,7 +94,7 @@ public abstract class HttpSession : ClientSession
     }
 
     /// <summary>
-    /// Sends the request and waits <see cref="IReadOnlyOutboundRoute.Timeout"/> milliseconds for a response.
+    /// Sends the request and waits <see cref="IReadOnlyClientRoute.Timeout"/> milliseconds for a response.
     /// The call does not throw, but returns a Tuple, where Item1 = StatusCode, Item2 = error string,
     /// Item3 = response body text. If the implementation of <see cref="ClientSession.SubmitPostRequest(SubmitPost)"/>
     /// does not call <see cref="SignAndSend"/>, it should call this method directly.

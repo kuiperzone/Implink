@@ -18,37 +18,28 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
-namespace KuiperZone.Implink.Routines.Api;
+namespace KuiperZone.Implink.Routines;
 
 /// <summary>
-/// A base class for all native API JSON body content.
+/// Extends <see cref="IReadOnlyRouteProfile"/> to provide additional fields for client routing.
 /// </summary>
-public class JsonBody
+public interface IReadOnlyClientProfile : IReadOnlyRouteProfile
 {
     /// <summary>
-    /// Common JsonSerializerOptions value.
+    /// Gets the optional routing category. Ignored if emtpy. If specified, it places additional
+    /// matching requirement before post is handled.
     /// </summary>
-    public static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions
-        { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-            WriteIndented = false, PropertyNameCaseInsensitive = true };
+    string Category { get; }
 
     /// <summary>
-    /// Deserialize using <see cref="JsonOpts"/>.
+    /// Gets the API technology kind. This is a string contain a single supported value,
+    /// i.e. "Twitter" or "IMPv1".
     /// </summary>
-    public static T Deserialize<T>(string? s) where T : JsonBody, new()
-    {
-        s ??= "";
-        return JsonSerializer.Deserialize<T>(s, JsonOpts) ?? new T();
-    }
+    string ApiKind { get; }
 
     /// <summary>
-    /// Overrides to give JSON body content.
+    /// Gets optional user-agent string. Used where supported by the API.
     /// </summary>
-    public override string ToString()
-    {
-        return JsonSerializer.Serialize(this, GetType(), JsonOpts);
-    }
+    string UserAgent { get; }
+
 }

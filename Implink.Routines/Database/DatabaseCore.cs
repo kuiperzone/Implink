@@ -27,8 +27,7 @@ namespace KuiperZone.Implink.Routines.Database;
 
 /// <summary>
 /// Base class for database access which internally employs Dapper and supports MySql and PostgreSql.
-/// Subclasses to provide specialised access. Additionally, file data may be supported by subclasses (mainly for
-/// test and development use). For file data, the connection string provides the file path.
+/// Subclasses to provide specialised access.
 /// </summary>
 public class DatabaseCore : IDisposable
 {
@@ -41,7 +40,7 @@ public class DatabaseCore : IDisposable
     /// <exception cref="DirectoryNotFoundException">Invalid directory</exception>
     public DatabaseCore(string kind, string connection)
     {
-        Kind = AssertKind(kind);
+        Kind = kind.Trim().ToLowerInvariant();
         Connection = connection.Trim();
 
         if (string.IsNullOrEmpty(Connection))
@@ -49,24 +48,30 @@ public class DatabaseCore : IDisposable
             throw new ArgumentException("Database connection string undefined");
         }
 
-        _sqlConnection = CreateConnection(Kind, Connection);
-
-        if (_sqlConnection == null)
+        switch(Kind)
         {
-            // Allow file not exist (it may be written later), but directory must exist.
-            var info = new FileInfo(Connection);
+            case MySqlKind:
+                _sqlConnection = new SqlConnection(connection);
+                break;
+            case PostgreSqlKind:
+                _sqlConnection = new NpgsqlConnection(connection);
+                break;
+            case FileKind:
+                var info = new FileInfo(Connection);
+                if (!Directory.Exists(info.Directory?.FullName))
+                {
+                    throw new DirectoryNotFoundException("File directory not exist: " + info.Directory?.FullName);
+                }
+                break;
+            default:
+                if (string.IsNullOrWhiteSpace(Kind))
+                {
+                    throw new ArgumentException("Database kind undefined");
+                }
 
-            if (!info.Exists && !Directory.Exists(info.Directory?.FullName))
-            {
-                throw new DirectoryNotFoundException("File directory not exist: " + info.Directory?.FullName);
-            }
+                throw new ArgumentException("Invalid database kind: " + kind);
         }
     }
-
-    /// <summary>
-    /// Json file. Connection string to specify file path.
-    /// </summary>
-    public const string FileKind = "file";
 
     /// <summary>
     /// MySQL.
@@ -77,6 +82,11 @@ public class DatabaseCore : IDisposable
     /// PostgreSQL.
     /// </summary>
     public const string PostgreSqlKind = "postgresql";
+
+    /// <summary>
+    /// File (connection is directory). Mainly for test use.
+    /// </summary>
+    public const string FileKind = "file";
 
     /// <summary>
     /// Gets the database backend kind.
@@ -166,34 +176,7 @@ public class DatabaseCore : IDisposable
             throw new ArgumentNullException(nameof(id));
         }
 
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            throw new ArgumentException("Database kind undefined");
-        }
-
-        id = id.Trim().ToLowerInvariant();
-
-        if (id != FileKind && id != MySqlKind && id != PostgreSqlKind)
-        {
-            throw new ArgumentException("Invalid database kind: " + id);
-        }
-
         return id;
-    }
-
-    private static IDbConnection? CreateConnection(string id, string connection)
-    {
-        if (id == MySqlKind)
-        {
-            return new SqlConnection(connection);
-        }
-
-        if (id == PostgreSqlKind)
-        {
-            return new NpgsqlConnection(connection);
-        }
-
-        return null;
     }
 
 }

@@ -18,17 +18,12 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines.Api;
+namespace KuiperZone.Implink.Routines;
 
 /// <summary>
-/// A base class for response body information.
+/// Extends <see cref="IReadOnlyRouteProfile"/> to provide additional fields for server routing.
 /// </summary>
-public class Response : JsonSerializable
+public interface IReadOnlyServerProfile : IReadOnlyRouteProfile
 {
-    /// <summary>
-    /// Gets or sets an optional error string to provide additional
-    /// information where the HTTP status code is not a 2xx value.
-    /// </summary>
-    public string? ErrorInfo { get; set; }
 
 }

@@ -28,7 +28,7 @@ namespace KuiperZone.Implink.Routines.Api.Thirdparty;
 /// Concrete implementation of <see cref="ClientSession"/> for the Twitter API. The API requires
 /// the following authentication key-values be provisioned: "consumer_key", "consumer_secret".
 /// </summary>
-public sealed class TwitterSession : ClientSession
+public sealed class TwitterClientSession : ClientSession
 {
     // We are using third-party package:
     // https://github.com/CoreTweet/CoreTweet
@@ -45,7 +45,7 @@ public sealed class TwitterSession : ClientSession
     /// <summary>
     /// Constructor.
     /// </summary>
-    public TwitterSession(IReadOnlyOutboundRoute profile)
+    public TwitterClientSession(IReadOnlyClientProfile profile)
         : base(profile)
     {
         _key = AuthDictionary["consumer_key"];
@@ -82,14 +82,6 @@ public sealed class TwitterSession : ClientSession
             var msg = e.InnerException?.Message ?? e.Message;
             return (int)HttpStatusCode.InternalServerError;
         }
-    }
-
-    /// <summary>
-    /// Implements.
-    /// </summary>
-    protected override void Dispose(bool disposing)
-    {
-        throw new NotImplementedException();
     }
 
     private OAuth2Token GetTokenNoSync()

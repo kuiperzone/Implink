@@ -28,29 +28,78 @@ namespace KuiperZone.Implink.Routines.Database;
 /// </summary>
 public class RoutingDatabase : DatabaseCore
 {
+    private readonly IEnumerable<IReadOnlyServerProfile>? _servers;
+    private readonly IEnumerable<IReadOnlyClientProfile>? _clients;
+
     /// <summary>
     /// Constructor with parameters.
     /// </summary>
     public RoutingDatabase(string storageId, string connection)
         : base(storageId, connection)
     {
+        if (Kind == FileKind)
+        {
+            ServerFilename = Path.Combine(Connection, "ServerProfiles.json");
+            ClientFilename = Path.Combine(Connection, "ClientProfiles.json");
+        }
     }
 
     /// <summary>
-    /// Loads all outbound routes. The result is a new instance on each call.
+    /// Gets the inbound server filename. For test only.
     /// </summary>
-    public IEnumerable<IReadOnlyOutboundRoute> QueryOutboundRoutes()
+    public readonly string? ServerFilename;
+
+    /// <summary>
+    /// Gets the outbound client filename. For test only.
+    /// </summary>
+    public readonly string? ClientFilename;
+
+    /// <summary>
+    /// Queries all server routes. The result is a new instance on each call.
+    /// </summary>
+    public IEnumerable<IReadOnlyServerProfile> QueryAllServerRoutes()
     {
-        if (Kind == FileKind)
+        if (ServerFilename != null)
         {
             var opts = new JsonSerializerOptions();
             opts.PropertyNameCaseInsensitive = true;
 
-            var text = File.ReadAllText(Connection, Encoding.UTF8);
-            return JsonSerializer.Deserialize<OutboundRoute[]>(text, opts) ?? Array.Empty<OutboundRoute>();
+            try
+            {
+                var text = File.ReadAllText(ServerFilename, Encoding.UTF8);
+                return JsonSerializer.Deserialize<ServerProfile[]>(text, opts) ?? Array.Empty<ServerProfile>();
+            }
+            catch (FileNotFoundException)
+            {
+                return Array.Empty<ServerProfile>();
+            }
         }
 
-        return Query<OutboundRoute>("SELECT STATEMENT TBD");
+        return Query<ServerProfile>("SELECT STATEMENT TBD");
+    }
+
+    /// <summary>
+    /// Queries all client routes. The result is a new instance on each call.
+    /// </summary>
+    public IEnumerable<IReadOnlyClientProfile> QueryAllClientRoutes()
+    {
+        if (ClientFilename != null)
+        {
+            var opts = new JsonSerializerOptions();
+            opts.PropertyNameCaseInsensitive = true;
+
+            try
+            {
+                var text = File.ReadAllText(ClientFilename, Encoding.UTF8);
+                return JsonSerializer.Deserialize<ClientProfile[]>(text, opts) ?? Array.Empty<ClientProfile>();
+            }
+            catch (FileNotFoundException)
+            {
+                return Array.Empty<ClientProfile>();
+            }
+        }
+
+        return Query<ClientProfile>("SELECT STATEMENT TBD");
     }
 
 }

@@ -18,17 +18,37 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using KuiperZone.Implink.Routines.Api.Imp;
+using KuiperZone.Implink.Routines.Api.Thirdparty;
+
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// A base class for response body information.
+/// Creates clients according to <see cref="IReadOnlyClientProfile.ApiKind"/>.
 /// </summary>
-public class Response : JsonSerializable
+public abstract class ClientFactory
 {
     /// <summary>
-    /// Gets or sets an optional error string to provide additional
-    /// information where the HTTP status code is not a 2xx value.
+    /// IMP API.
     /// </summary>
-    public string? ErrorInfo { get; set; }
+    public const string ImpV1 = "IMPv1";
 
+    /// <summary>
+    /// Twitter.
+    /// </summary>
+    public const string Twitter = "Twitter";
+
+    /// <summary>
+    /// Creates new instance with given route profile.
+    /// </summary>
+    /// <exception cref="ArgumentException">Invalid ApiKind</exception>
+    public ClientSession Create(IReadOnlyClientProfile profile)
+    {
+        switch (profile.ApiKind.ToLowerInvariant())
+        {
+            case ImpV1: return new ImpClientSession(profile);
+            case Twitter: return new TwitterClientSession(profile);
+            default: throw new ArgumentException($"Invalid or unknown {nameof(IReadOnlyClientProfile.ApiKind)} {profile.ApiKind}");
+        }
+    }
 }

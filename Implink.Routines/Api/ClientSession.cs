@@ -26,7 +26,7 @@ namespace KuiperZone.Implink.Routines.Api;
 /// </summary>
 public abstract class ClientSession : IDisposable
 {
-    public ClientSession(IReadOnlyOutboundRoute profile)
+    public ClientSession(IReadOnlyClientProfile profile)
     {
         const char AuthSep = ',';
 
@@ -64,7 +64,7 @@ public abstract class ClientSession : IDisposable
     /// <summary>
     /// Gets the profile supplied on construction.
     /// </summary>
-    public readonly IReadOnlyOutboundRoute Profile;
+    public readonly IReadOnlyClientProfile Profile;
 
     /// <summary>
     /// Gets the authentication dictionary. The dictionary is empty if no authentication is specified.
@@ -74,7 +74,8 @@ public abstract class ClientSession : IDisposable
     /// <summary>
     /// Abstract method which translates the submit data into a vendor specific call and provides the response.
     /// The return value is the HTTP status code. This method may block for up to
-    /// <see cref="IReadOnlyOutboundRoute.Timeout"/> before throw an exception. It may throw any exception on failure.
+    /// <see cref="IReadOnlyClientProfile.Timeout"/> before throw an exception. It may throw any exception
+    /// on failure.
     /// </summary>
     public abstract int SubmitPostRequest(SubmitPost submit, out SubmitResponse response);
 
@@ -88,8 +89,10 @@ public abstract class ClientSession : IDisposable
     }
 
     /// <summary>
-    /// To be implemented.
+    /// Can be overridden.
     /// </summary>
-    protected abstract void Dispose(bool disposing);
+    protected virtual void Dispose(bool disposing)
+    {
+    }
 
 }

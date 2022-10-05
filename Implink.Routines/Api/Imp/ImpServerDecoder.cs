@@ -19,33 +19,32 @@
 // -----------------------------------------------------------------------------
 
 using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 
-namespace KuiperZone.Implink.Routines.Api;
+namespace KuiperZone.Implink.Routines.Api.Imp;
 
 /// <summary>
 /// Authenticates an incoming HTTP request and reads the body content. The instance is thread-safe.
 /// </summary>
-public class ImpDecoder
+public class ImpServerDecoder
 {
-    private readonly byte[] _private;
+    private readonly ImpKeys _keys;
 
     /// <summary>
-    /// Constructor with private key string. A value of empty or null disables authentication.
+    /// Default constructor. Authentication is disables (use only for internal LAN).
     /// </summary>
-    public ImpDecoder(string? priv = null)
+    public ImpServerDecoder()
     {
-        _private = Encoding.UTF8.GetBytes(priv ?? "");
+        _keys = new();
     }
 
     /// <summary>
-    /// Constructor with <see cref="ClientSession"/>.
+    /// Constructor with key instance.
     /// </summary>
-    public ImpDecoder(ClientSession client)
+    public ImpServerDecoder(ImpKeys keys)
     {
-        _private = Encoding.UTF8.GetBytes(client.AuthDictionary.GetValueOrDefault("PRIVATE", ""));
+        _keys = keys;
     }
 
     /// <summary>
@@ -68,7 +67,7 @@ public class ImpDecoder
     /// </summary>
     public bool IsAuthenticationEnabled
     {
-        get { return _private.Length != 0; }
+        get { return _keys.IsAuthenticationEnabled; }
     }
 
     /// <summary>
@@ -76,41 +75,7 @@ public class ImpDecoder
     /// constructor. On failure, InvalidOperationException is thrown. The routine does nothing
     /// if <see cref="IsAuthenticationEnabled"/> is false.
     /// </summary>
-    public void Assert(string? timestamp, string? nonce, string? sign, string? method, string? uri, string? body)
-    {
-        if (IsAuthenticationEnabled)
-        {
-            // HMAC-SHA256(timestamp + nonce + METHOD + /url + body, PRIVATE)
-            uri = '/' + uri?.TrimStart('/');
-
-            // CallLogger.Debug("Timestamp: {0}", timestamp);
-            // CallLogger.Debug("Nonce: {0}", nonce);
-            // CallLogger.Debug("Sign: {0}", sign);
-            // CallLogger.Debug("Method: {0}", method);
-            // CallLogger.Debug("Uri: {0}", uri);
-            // CallLogger.Debug("Body: {0}", body);
-
-            var prehash = new StringBuilder(1024);
-            prehash.Append(timestamp);
-            prehash.Append(nonce);
-            prehash.Append(method?.ToUpperInvariant());
-            prehash.Append(uri);
-            prehash.Append(body);
-
-            using (var hmac = new HMACSHA256(_private))
-            {
-                if (sign != Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(prehash.ToString()))))
-                {
-                    throw new InvalidOperationException("Authentication failure");
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Overload with instance of <see cref="HttpRequest"/>. On success, the return value is the request
-    /// body string decoded as UTF8.
-    /// </summary>
+    /// <exception cref="InvalidOperationException">Authentication failed</exception>
     public string Assert(HttpRequest request)
     {
         var body = new StreamReader(request.Body, Encoding.UTF8, false).ReadToEnd();
@@ -121,7 +86,7 @@ public class ImpDecoder
             string timestamp = request.Headers[TIMESTAMP_KEY];
             string nonce = request.Headers[NONCE_KEY];
             string sign = request.Headers[SIGN_KEY];
-            Assert(timestamp, nonce, sign, request.Method, uri, body);
+            _keys.Assert(sign, timestamp, nonce, request.Method, uri, body);
         }
 
         return body;
@@ -146,7 +111,7 @@ public class ImpDecoder
             string timestamp = GetHeader(request.Headers, TIMESTAMP_KEY);
             string nonce = GetHeader(request.Headers, NONCE_KEY);
             string sign = GetHeader(request.Headers, SIGN_KEY);
-            Assert(timestamp, nonce, sign, request.Method.ToString(), uri, body);
+            _keys.Assert(sign, timestamp, nonce, request.Method.ToString(), uri, body);
         }
 
         return body;
@@ -166,5 +131,4 @@ public class ImpDecoder
 
         throw new InvalidOperationException($"HTTP {key} header value not provided");
     }
-
 }

@@ -18,34 +18,18 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using System.Text;
-
-namespace KuiperZone.Implink.Routines.Api;
+namespace KuiperZone.Implink.Routines.Api.Imp;
 
 /// <summary>
-/// Concrete implementation of <see cref="HttpSession"/> for the native IMP API client.
+/// Implements <see cref="ISignerFactory"/> for the native IMP API.
 /// </summary>
-public sealed class ImpSession : HttpSession
+public class ImpSignerFactory : ISignerFactory
 {
     /// <summary>
-    /// Constructor.
+    /// Creates an instance of <see cref="IHttpSigner"/>.
     /// </summary>
-    public ImpSession(IReadOnlyOutboundRoute profile)
-        : base(profile, new ImpSignerFactory(), "application/json")
+    public IHttpSigner Create(ClientSession client)
     {
-    }
-
-    /// <summary>
-    /// Implements <see cref="ClientSession.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
-    /// </summary>
-    public override int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
-    {
-        var msg = new HttpRequestMessage(HttpMethod.Post, nameof(SubmitPost));
-        msg.Content = new StringContent(submit.ToString(), Encoding.UTF8, "application/json");
-
-        var tuple = SignAndSend(msg);
-        response = JsonBody.Deserialize<SubmitResponse>(tuple.Item3);
-        response.ErrorInfo ??= tuple.Item2;
-        return tuple.Item1;
+        return new ImpClientSigner(new ImpKeys(client));
     }
 }
