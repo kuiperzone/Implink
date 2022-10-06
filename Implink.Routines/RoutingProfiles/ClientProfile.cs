@@ -18,7 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines;
+namespace KuiperZone.Implink.Routines.RoutingProfile;
 
 /// <summary>
 /// A serializable class which implments <see cref="IReadOnlyClientProfile"/> and provides setters.

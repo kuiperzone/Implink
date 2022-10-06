@@ -19,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 using System.Text;
+using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api.Imp;
 
@@ -44,8 +45,8 @@ public sealed class ImpClientSession : HttpClientSession
         msg.Content = new StringContent(submit.ToString(), Encoding.UTF8, "application/json");
 
         var tuple = SignAndSend(msg);
-        response = JsonSerializable.Deserialize<SubmitResponse>(tuple.Item3);
-        response.ErrorInfo ??= tuple.Item2;
-        return tuple.Item1;
+        response = JsonSerializable.Deserialize<SubmitResponse>(tuple.Body);
+        response.ErrorReason = tuple.ErrorReason;
+        return tuple.StatusCode;
     }
 }

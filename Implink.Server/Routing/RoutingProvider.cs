@@ -30,7 +30,7 @@ namespace KuiperZone.Implink.Routing;
 /// <summary>
 /// Provides routing information for forward proxy.
 /// </summary>
-public sealed class RoutingProvider : IDisposable
+public sealed class RoutingProvider2 : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions
         { WriteIndented = true, PropertyNameCaseInsensitive = true };

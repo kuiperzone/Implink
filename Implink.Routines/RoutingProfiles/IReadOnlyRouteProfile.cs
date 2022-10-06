@@ -18,7 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines;
+namespace KuiperZone.Implink.Routines.RoutingProfile;
 
 /// <summary>
 /// Readonly route data common to both client and server routing.
@@ -46,6 +46,13 @@ public interface IReadOnlyRouteProfile : IEquatable<IReadOnlyRouteProfile>
     /// random characters each (take care to exclude comma). Example: "PRIVATE=Fyhf$34hjfTh94,PUBLIC=KvBd73!sdL84B".
     /// </summary>
     string Authentication { get; }
+
+    /// <summary>
+    /// Gets a maximum request rate in requests per minute. It applies per client. Requests above this rate will
+    /// return a 429 error. A value of zero or less disables throttling. Advisable to specify a positive value
+    /// for server side.
+    /// </summary>
+    int ThrottleRate { get; }
 
     /// <summary>
     /// Gets the request timeout in milliseconds. Defaults to 15000. A value or 0 or less is invalid.

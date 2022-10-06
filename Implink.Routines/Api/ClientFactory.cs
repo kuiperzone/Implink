@@ -20,29 +20,35 @@
 
 using KuiperZone.Implink.Routines.Api.Imp;
 using KuiperZone.Implink.Routines.Api.Thirdparty;
+using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
 /// Creates clients according to <see cref="IReadOnlyClientProfile.ApiKind"/>.
 /// </summary>
-public abstract class ClientFactory
+public static class ClientFactory
 {
     /// <summary>
-    /// IMP API.
+    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. IMP API.
     /// </summary>
     public const string ImpV1 = "IMPv1";
 
     /// <summary>
-    /// Twitter.
+    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Twitter.
     /// </summary>
     public const string Twitter = "Twitter";
+
+    /// <summary>
+    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Facebook.
+    /// </summary>
+    public const string Facebook = "Facebook";
 
     /// <summary>
     /// Creates new instance with given route profile.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid ApiKind</exception>
-    public ClientSession Create(IReadOnlyClientProfile profile)
+    public static ClientSession Create(IReadOnlyClientProfile profile)
     {
         switch (profile.ApiKind.ToLowerInvariant())
         {

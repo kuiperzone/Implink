@@ -18,28 +18,25 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines;
+namespace KuiperZone.Implink.Routines.Api.Imp;
 
 /// <summary>
-/// Extends <see cref="IReadOnlyRouteProfile"/> to provide additional fields for client routing.
+/// Custom exception class. Indicates carrying out request.
 /// </summary>
-public interface IReadOnlyClientProfile : IReadOnlyRouteProfile
+public class ImpException : InvalidOperationException
 {
     /// <summary>
-    /// Gets the optional routing category. Ignored if emtpy. If specified, it places additional
-    /// matching requirement before post is handled.
+    /// Constructor.
     /// </summary>
-    string Category { get; }
+    public ImpException(string message = "Request failed", int status = 400)
+        : base(message)
+    {
+        StatusCode = status;
+    }
 
     /// <summary>
-    /// Gets the API technology kind. This is a string contain a single supported value,
-    /// i.e. "Twitter" or "IMPv1".
+    /// Gets the status code.
     /// </summary>
-    string ApiKind { get; }
-
-    /// <summary>
-    /// Gets optional user-agent string. Used where supported by the API.
-    /// </summary>
-    string UserAgent { get; }
+    public int StatusCode { get; }
 
 }

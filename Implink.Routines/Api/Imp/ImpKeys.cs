@@ -18,6 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -28,7 +29,6 @@ namespace KuiperZone.Implink.Routines.Api.Imp;
 /// </summary>
 public class ImpKeys
 {
-    private readonly string _public;
     private readonly byte[] _private;
 
     /// <summary>
@@ -36,7 +36,7 @@ public class ImpKeys
     /// </summary>
     public ImpKeys()
     {
-        _public = "";
+        Public = "";
         _private = Array.Empty<byte>();
     }
 
@@ -44,25 +44,37 @@ public class ImpKeys
     /// Constructor with PUBLIC and PRIVATE values. Provided empty or null for both disables authentication.
     /// </summary>
     /// <exception cref="ArgumentException">Both PUBLIC and PRIVATE keys must be provided</exception>
-    public ImpKeys(string? pub, string? priv)
+    public ImpKeys(string? pub, string? priv, int deltaSec = 30)
     {
         if (string.IsNullOrEmpty(pub) != string.IsNullOrEmpty(priv))
         {
             throw new ArgumentException("Both PUBLIC and PRIVATE keys must be provided");
         }
 
-        _public = pub ?? "";
+        Public = pub ?? "";
         _private = Encoding.UTF8.GetBytes(priv ?? "");
+        AllowedDeltaSeconds = deltaSec;
     }
 
     /// <summary>
     /// Constructor with <see cref="ClientSession"/> instace.
     /// </summary>
     /// <exception cref="ArgumentException">Both PUBLIC and PRIVATE keys must be provided</exception>
-    public ImpKeys(ClientSession client)
-        : this(GetAuth(client, "PUBLIC"), GetAuth(client, "PRIVATE"))
+    public ImpKeys(ClientSession client, int deltaSec = 30)
+        : this(GetAuth(client, "PUBLIC"), GetAuth(client, "PRIVATE"), deltaSec)
     {
     }
+
+    /// <summary>
+    /// Gets the public key.
+    /// </summary>
+    public readonly string Public;
+
+    /// <summary>
+    /// Gets the maximum time delta a timetamp is allowed to differ from system time.
+    /// A negative or zero value disables.
+    /// </summary>
+    public readonly int AllowedDeltaSeconds;
 
     /// <summary>
     /// Gets whether a private key string was provided.
@@ -74,19 +86,33 @@ public class ImpKeys
 
     /// <summary>
     /// Asserts where the request data authenticates agains the private key provided on
-    /// constructor. On failure, InvalidOperationException is thrown. The routine does nothing
-    /// if <see cref="IsAuthenticationEnabled"/> is false.
+    /// constructor. The routine does nothing if <see cref="IsAuthenticationEnabled"/> is false.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Authentication failed</exception>
-    public void Assert(string? sign, string? timestamp, string? nonce, string? method, string? uri, string? body)
+    /// <exception cref="ImpException">Authentication failed</exception>
+    public void Assert(string? sign, string? timestamp, string? nonce, string? body)
     {
         if (IsAuthenticationEnabled)
         {
-            var comp = GetSignature(timestamp, nonce, method, uri, body);
+            if (!long.TryParse(timestamp, out long uxsec))
+            {
+                throw new ImpException("Invalid timestamp", 401);
+            }
+
+            if (AllowedDeltaSeconds > 0)
+            {
+                long now = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds();
+
+                if (now - uxsec > AllowedDeltaSeconds || uxsec - now > AllowedDeltaSeconds)
+                {
+                    throw new ImpException("Timestamp difference too large", 401);
+                }
+            }
+
+            var comp = GetSignature(timestamp, nonce, body);
 
             if (comp != sign)
             {
-                throw new InvalidOperationException("Authentication failed");
+                throw new ImpException("Authentication failed", 401);
             }
         }
     }
@@ -94,17 +120,24 @@ public class ImpKeys
     /// <summary>
     /// Calculatues signature string.
     /// </summary>
-    public string GetSignature(string? timestamp, string? nonce, string? method, string? uri, string? body)
+    public string GetSignature(string? nonce, string? body, out string timestamp)
+    {
+        timestamp = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        return GetSignature(timestamp, nonce, body);
+    }
+
+    /// <summary>
+    /// Calculatues signature string.
+    /// </summary>
+    public string GetSignature(string? timestamp, string? nonce, string? body)
     {
         if (IsAuthenticationEnabled)
         {
-            // HMAC-SHA256(timestamp + nonce + PUBLIC + METHOD + /url + body, PRIVATE)
+            // HMAC-SHA256(timestamp + nonce + PUBLIC + body, PRIVATE)
             var prehash = new StringBuilder(1024);
             prehash.Append(timestamp);
             prehash.Append(nonce);
-            prehash.Append(_public);
-            prehash.Append(method?.ToUpperInvariant());
-            prehash.Append('/' + uri?.TrimStart('/'));
+            prehash.Append(Public);
             prehash.Append(body);
 
             using (var hmac = new HMACSHA256(_private))

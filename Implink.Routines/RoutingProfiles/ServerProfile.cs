@@ -18,13 +18,21 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines;
+namespace KuiperZone.Implink.Routines.RoutingProfile;
 
 /// <summary>
 /// A serializable class which implments <see cref="IReadOnlyServerProfile"/> and provides setters.
 /// </summary>
 public class ServerProfile : RouteProfile, IReadOnlyServerProfile
 {
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    public ServerProfile()
+    {
+        ThrottleRate = 10;
+    }
+
     /// <summary>
     /// Overrides.
     /// </summary>

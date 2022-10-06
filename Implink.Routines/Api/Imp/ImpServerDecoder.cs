@@ -58,6 +58,11 @@ public class ImpServerDecoder
     public readonly static string NONCE_KEY = "IMP_NONCE";
 
     /// <summary>
+    /// Gets the nonce header key name.
+    /// </summary>
+    public readonly static string PUBLIC_KEY = "IMP_PUBLIC";
+
+    /// <summary>
     /// Gets the sign header key name.
     /// </summary>
     public readonly static string SIGN_KEY = "IMP_SIGN";
@@ -72,30 +77,36 @@ public class ImpServerDecoder
 
     /// <summary>
     /// Asserts where the request data authenticates agains the private key provided on
-    /// constructor. On failure, InvalidOperationException is thrown. The routine does nothing
-    /// if <see cref="IsAuthenticationEnabled"/> is false.
+    /// constructor. The routine does nothing if <see cref="IsAuthenticationEnabled"/> is false.
+    /// On success, the result is the response body text.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Authentication failed</exception>
+    /// <exception cref="ImpException">Authentication failed</exception>
     public string Assert(HttpRequest request)
     {
         var body = new StreamReader(request.Body, Encoding.UTF8, false).ReadToEnd();
 
         if (IsAuthenticationEnabled)
         {
-            var uri = request.Path.ToString();
-            string timestamp = request.Headers[TIMESTAMP_KEY];
-            string nonce = request.Headers[NONCE_KEY];
-            string sign = request.Headers[SIGN_KEY];
-            _keys.Assert(sign, timestamp, nonce, request.Method, uri, body);
+            // Do this before HMAC
+            if (_keys.Public != request.Headers[PUBLIC_KEY])
+            {
+                throw new ImpException("Authentication failed", 401);
+            }
+
+            string timestamp = GetHeader(request.Headers, TIMESTAMP_KEY);
+            string nonce = GetHeader(request.Headers, NONCE_KEY);
+            string sign = GetHeader(request.Headers, SIGN_KEY);
+            _keys.Assert(sign, timestamp, nonce, body);
         }
 
         return body;
     }
 
     /// <summary>
-    /// Overload with instance of <see cref="HttpRequestMessage"/>. On success, the return value is the request
-    /// body string decoded as UTF8.
+    /// Overload with instance of <see cref="HttpRequestMessage"/>.
+    /// On success, the result is the response body text.
     /// </summary>
+    /// <exception cref="ImpException">Authentication failed</exception>
     public string Assert(HttpRequestMessage request)
     {
         string body = "";
@@ -107,14 +118,25 @@ public class ImpServerDecoder
 
         if (IsAuthenticationEnabled)
         {
-            var uri = request.RequestUri?.ToString();
             string timestamp = GetHeader(request.Headers, TIMESTAMP_KEY);
             string nonce = GetHeader(request.Headers, NONCE_KEY);
             string sign = GetHeader(request.Headers, SIGN_KEY);
-            _keys.Assert(sign, timestamp, nonce, request.Method.ToString(), uri, body);
+            _keys.Assert(sign, timestamp, nonce, body);
         }
 
         return body;
+    }
+
+    private static string GetHeader(IHeaderDictionary headers, string key)
+    {
+        var rslt = headers[key].ToString();
+
+        if (rslt.Length != 0)
+        {
+            return rslt;
+        }
+
+        throw new ImpException($"Header {key} undefined", 400);
     }
 
     private static string GetHeader(HttpRequestHeaders headers, string key)
@@ -129,6 +151,6 @@ public class ImpServerDecoder
             }
         }
 
-        throw new InvalidOperationException($"HTTP {key} header value not provided");
+        throw new ImpException($"Header {key} undefined");
     }
 }

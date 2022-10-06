@@ -18,7 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines;
+namespace KuiperZone.Implink.Routines.RoutingProfile;
 
 /// <summary>
 /// A serializable class which implements <see cref="IReadOnlyRouteProfile"/> and provides setters.
@@ -39,6 +39,11 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IEquatable<
     /// Implements <see cref="IReadOnlyRouteProfile.Authentication"/> and provides a setter.
     /// </summary>
     public string Authentication { get; set; } = "";
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyRouteProfile.ThrottleRate"/> and provides a setter.
+    /// </summary>
+    public int ThrottleRate { get; set; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.Timeout"/> and provides a setter.
@@ -91,7 +96,8 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IEquatable<
         }
 
         if (obj != null && NameId == obj.NameId && BaseAddress == obj.BaseAddress &&
-            Authentication == obj.Authentication && Timeout == obj.Timeout)
+            Authentication == obj.Authentication && Timeout == obj.Timeout &&
+            Timeout == obj.Timeout)
         {
             return GetType() == obj.GetType();
         }

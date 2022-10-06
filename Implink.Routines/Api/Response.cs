@@ -26,9 +26,7 @@ namespace KuiperZone.Implink.Routines.Api;
 public class Response : JsonSerializable
 {
     /// <summary>
-    /// Gets or sets an optional error string to provide additional
-    /// information where the HTTP status code is not a 2xx value.
+    /// Gets or sets an optional error reason message.
     /// </summary>
-    public string? ErrorInfo { get; set; }
-
+    public string? ErrorReason { get; set; }
 }

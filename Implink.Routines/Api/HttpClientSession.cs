@@ -21,13 +21,14 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api;
 /// <summary>
 /// Abstract base class which extends <see cref="ClientSession"/> to implement an internal
 /// <see cref="HttpClient"/> instance. It does not, however, implement the API conversion.
 /// </summary>
-public abstract class HttpClientSession : ClientSession
+public abstract class HttpClientSession : ClientSession, IClientApi
 {
     private readonly HttpClient _client = HttpClientFactory.Create();
     private int _sendCounter;
@@ -72,7 +73,7 @@ public abstract class HttpClientSession : ClientSession
         {
             if (Interlocked.Increment(ref _disposeCounter) == 1)
             {
-                ThreadPool.QueueUserWorkItem(DisposeProc);
+                ThreadPool.QueueUserWorkItem(DisposeProc, this);
             }
         }
         else
@@ -82,12 +83,12 @@ public abstract class HttpClientSession : ClientSession
     }
 
     /// <summary>
-    /// Calls <see cref="IHttpSigner.Add"/> where <see cref="Authentication"/> is not null, and returns
-    /// the result of <see cref="Send"/>. This method is provided for convenience and is expected to be
-    /// called by the implementation of <see cref="ClientSession.SubmitPostRequest(SubmitPost)"/> with an
+    /// Calls <see cref="IHttpSigner.Add"/> where <see cref="ClientSession.AuthDictionary"/> is not empty,
+    /// and returns the result of <see cref="Send"/>. This method is provided for convenience and is expected
+    /// to be called by the implementation of <see cref="ClientSession.SubmitPostRequest"/> with an
     /// instance of HttpRequestMessage. It does not throw.
     /// </summary>
-    protected Tuple<int, string, string> SignAndSend(HttpRequestMessage request)
+    protected SendTuple SignAndSend(HttpRequestMessage request)
     {
         Signer?.Add(request);
         return Send(request);
@@ -95,11 +96,11 @@ public abstract class HttpClientSession : ClientSession
 
     /// <summary>
     /// Sends the request and waits <see cref="IReadOnlyClientRoute.Timeout"/> milliseconds for a response.
-    /// The call does not throw, but returns a Tuple, where Item1 = StatusCode, Item2 = error string,
-    /// Item3 = response body text. If the implementation of <see cref="ClientSession.SubmitPostRequest(SubmitPost)"/>
-    /// does not call <see cref="SignAndSend"/>, it should call this method directly.
+    /// The call does not throw, but returns an instance of <see cref="SendTuple"/>. If the implementation of
+    /// <see cref="ClientSession.SubmitPostRequest"/> does not call <see cref="SignAndSend"/>, it should call
+    /// this method directly.
     /// </summary>
-    protected Tuple<int, string, string> Send(HttpRequestMessage request)
+    protected SendTuple Send(HttpRequestMessage request)
     {
         try
         {
@@ -112,21 +113,21 @@ public abstract class HttpClientSession : ClientSession
                 body = new StreamReader(resp.Content.ReadAsStream(), Encoding.UTF8, false).ReadToEnd();
             }
 
-            return Tuple.Create((int)resp.StatusCode, resp.StatusCode.ToString(), body);
+            return new SendTuple((int)resp.StatusCode, resp.StatusCode.ToString(), body);
         }
         catch (HttpRequestException e)
         {
             var code = e.StatusCode ?? HttpStatusCode.InternalServerError;
-            return Tuple.Create((int)code, code.ToString(), "");
+            return new SendTuple((int)code, code.ToString());
         }
         catch (TaskCanceledException e) when (e.InnerException is TimeoutException)
         {
-            return Tuple.Create((int)HttpStatusCode.RequestTimeout, HttpStatusCode.RequestTimeout.ToString(), "");
+            return new SendTuple((int)HttpStatusCode.RequestTimeout, HttpStatusCode.RequestTimeout.ToString());
         }
         catch (Exception e)
         {
             var msg = e.InnerException?.Message ?? e.Message;
-            return Tuple.Create((int)HttpStatusCode.InternalServerError, msg, "");
+            return new SendTuple((int)HttpStatusCode.InternalServerError, msg);
         }
         finally
         {
@@ -134,10 +135,39 @@ public abstract class HttpClientSession : ClientSession
         }
     }
 
-    private void DisposeProc(object? _)
+    private static void DisposeProc(object? obj)
     {
         // Wait until finished sending or timeout
-        SpinWait.SpinUntil( () => { return Interlocked.Or(ref _sendCounter, 0) == 0; }, Profile.Timeout);
-        _client.Dispose();
+        var t = (HttpClientSession)(obj ?? throw new ArgumentNullException());
+        SpinWait.SpinUntil( () => { return Interlocked.Or(ref t._sendCounter, 0) == 0; }, t.Profile.Timeout);
+        t._client.Dispose();
+    }
+
+    /// <summary>
+    /// Result class for <see cref="Send"/>.
+    /// </summary>
+    protected class SendTuple
+    {
+        public SendTuple(int code, string? reason, string body = "")
+        {
+            StatusCode = code;
+            ErrorReason = reason;
+            Body = body;
+        }
+
+        /// <summary>
+        /// Gets the status code.
+        /// </summary>
+        public readonly int StatusCode;
+
+        /// <summary>
+        /// Gets the error message, if any.
+        /// </summary>
+        public readonly string? ErrorReason;
+
+        /// <summary>
+        /// Gets the body text.
+        /// </summary>
+        public readonly string Body;
     }
 }

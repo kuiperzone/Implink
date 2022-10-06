@@ -18,48 +18,23 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using System.Net;
-using KuiperZone.Implink.Routing;
+using KuiperZone.Implink.Routines.RoutingProfile;
 
-namespace KuiperZone.Implink.Proxies;
+namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// Provides routing information for forward proxy.
+/// Interface which provide client request calls.
 /// </summary>
-public sealed class ForwardProxy : IDisposable
+public interface IClientApi
 {
-    private readonly ILogger? _logger;
-    private volatile bool v_disposed;
+    /// <summary>
+    /// Gets the client profile.
+    /// </summary>
+    IReadOnlyClientProfile Profile { get; }
 
     /// <summary>
-    /// Constructor.
+    /// Sends the <see cref="SubmitPost"/> message and returns the status code.
+    /// Any exception will be interepted as InternalServerError 500.
     /// </summary>
-    public ForwardProxy(WebApplication app)
-    {
-        _logger = app.Logger;
-        Routing = new RoutingProvider(app.Configuration, _logger);
-
-        // https://www.koderdojo.com/blog/asp-net-core-routing-and-routebuilder-mapget-for-calculating-a-factorial
-        app.MapPost("/publish", PublishHandler);
-    }
-
-    /// <summary>
-    /// Gets the routing provider.
-    /// </summary>
-    public readonly RoutingProvider Routing;
-
-    /// <summary>
-    /// Implements disposable.
-    /// </summary>
-    public void Dispose()
-    {
-        Routing.Dispose();
-        v_disposed = true;
-    }
-
-    private Task PublishHandler(HttpContext ctx)
-    {
-        return ctx.Response.WriteJsonAsync(HttpStatusCode.OK, "Hello World");
-    }
-
+    int SubmitPostRequest(SubmitPost submit, out SubmitResponse response);
 }

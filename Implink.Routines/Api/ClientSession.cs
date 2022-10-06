@@ -18,18 +18,19 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using KuiperZone.Implink.Routines.RoutingProfile;
+
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// Abstract base class which repesents a client session with an external vendor. The
-/// concrete subclass is to implement API conversion and necessary calls over the wire.
+/// Abstract base class for a client session with an external vendor. The concrete subclass is to
+/// implement API conversion and necessary calls over the wire.
 /// </summary>
-public abstract class ClientSession : IDisposable
+public abstract class ClientSession : IClientApi, IDisposable
 {
     public ClientSession(IReadOnlyClientProfile profile)
     {
-        const char AuthSep = ',';
-
+        profile.Assert();
         Profile = profile;
 
         var auth = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -37,7 +38,7 @@ public abstract class ClientSession : IDisposable
 
         if (!string.IsNullOrWhiteSpace(profile.Authentication))
         {
-            var split = profile.Authentication.Split(AuthSep, StringSplitOptions.RemoveEmptyEntries);
+            var split = profile.Authentication.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
             foreach (var pair in split)
             {
@@ -62,20 +63,17 @@ public abstract class ClientSession : IDisposable
     }
 
     /// <summary>
-    /// Gets the profile supplied on construction.
-    /// </summary>
-    public readonly IReadOnlyClientProfile Profile;
-
-    /// <summary>
     /// Gets the authentication dictionary. The dictionary is empty if no authentication is specified.
     /// </summary>
     public readonly IReadOnlyDictionary<string, string> AuthDictionary;
 
     /// <summary>
-    /// Abstract method which translates the submit data into a vendor specific call and provides the response.
-    /// The return value is the HTTP status code. This method may block for up to
-    /// <see cref="IReadOnlyClientProfile.Timeout"/> before throw an exception. It may throw any exception
-    /// on failure.
+    /// Implements <see cref="IClientApi.Profile"/>.
+    /// </summary>
+    public IReadOnlyClientProfile Profile { get; }
+
+    /// <summary>
+    /// Implements <see cref="IClientApi.SubmitPostRequest"/> as abstract.
     /// </summary>
     public abstract int SubmitPostRequest(SubmitPost submit, out SubmitResponse response);
 

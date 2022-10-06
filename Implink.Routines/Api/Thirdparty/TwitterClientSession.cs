@@ -21,6 +21,7 @@
 using System.Globalization;
 using System.Net;
 using CoreTweet;
+using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api.Thirdparty;
 
@@ -28,7 +29,7 @@ namespace KuiperZone.Implink.Routines.Api.Thirdparty;
 /// Concrete implementation of <see cref="ClientSession"/> for the Twitter API. The API requires
 /// the following authentication key-values be provisioned: "consumer_key", "consumer_secret".
 /// </summary>
-public sealed class TwitterClientSession : ClientSession
+public sealed class TwitterClientSession : ClientSession, IClientApi
 {
     // We are using third-party package:
     // https://github.com/CoreTweet/CoreTweet
@@ -68,18 +69,22 @@ public sealed class TwitterClientSession : ClientSession
             {
                 var rslt = GetTokenNoSync().Statuses.UpdateAsync(temp, new CancellationTokenSource(Profile.Timeout).Token).Result;
                 response.MsgId = rslt.Id.ToString(CultureInfo.InvariantCulture);
-                response.ErrorInfo = "OK";
                 return 200;
             }
         }
+        catch (TwitterException e)
+        {
+            response.ErrorReason = e.Message;
+            return (int)e.Status;
+        }
         catch (TaskCanceledException e) when (e.InnerException is TimeoutException)
         {
-            response.ErrorInfo = e.InnerException.Message;
+            response.ErrorReason = e.InnerException.Message;
             return (int)HttpStatusCode.RequestTimeout;
         }
         catch (Exception e)
         {
-            var msg = e.InnerException?.Message ?? e.Message;
+            response.ErrorReason = e.InnerException?.Message ?? e.Message;
             return (int)HttpStatusCode.InternalServerError;
         }
     }

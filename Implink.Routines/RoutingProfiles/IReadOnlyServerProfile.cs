@@ -7,7 +7,7 @@
 // This file is part of Implink.
 //
 // Implink is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General
-// Public Licens as published by the Free Software Foundation, either version 3 of the License, or (at your option)
+// Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
 // any later version.
 //
 // Implink is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
@@ -18,25 +18,12 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routing;
+namespace KuiperZone.Implink.Routines.RoutingProfile;
 
 /// <summary>
-/// Identifies database backend.
+/// Extends <see cref="IReadOnlyRouteProfile"/> to provide additional fields for server routing.
 /// </summary>
-public enum DbBackend
+public interface IReadOnlyServerProfile : IReadOnlyRouteProfile
 {
-    /// <summary>
-    /// Routing file. Connection string to specify file path.
-    /// </summary>
-    File,
 
-    /// <summary>
-    /// MySQL.
-    /// </summary>
-    MySql,
-
-    /// <summary>
-    /// PostgreSQL.
-    /// </summary>
-    PostgreSql,
 }

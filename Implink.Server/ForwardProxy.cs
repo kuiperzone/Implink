@@ -18,12 +18,47 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines;
+using System.Net;
+using KuiperZone.Implink.Routing;
+
+namespace KuiperZone.Implink;
 
 /// <summary>
-/// Extends <see cref="IReadOnlyRouteProfile"/> to provide additional fields for server routing.
+/// Provides routing information for forward proxy.
 /// </summary>
-public interface IReadOnlyServerProfile : IReadOnlyRouteProfile
+public sealed class ForwardProxy : IDisposable
 {
+    private volatile bool v_disposed;
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    public ForwardProxy(WebApplication app)
+    {
+        // _logger = app.Logger;
+        Routing = new RoutingProvider(app.Configuration, _logger);
+
+        // https://www.koderdojo.com/blog/asp-net-core-routing-and-routebuilder-mapget-for-calculating-a-factorial
+        app.MapPost("/publish", PublishHandler);
+    }
+
+    /// <summary>
+    /// Gets the routing provider.
+    /// </summary>
+    public readonly RoutingProvider Routing;
+
+    /// <summary>
+    /// Implements disposable.
+    /// </summary>
+    public void Dispose()
+    {
+        Routing.Dispose();
+        v_disposed = true;
+    }
+
+    private Task PublishHandler(HttpContext ctx)
+    {
+        return ctx.Response.WriteJsonAsync(HttpStatusCode.OK, "Hello World");
+    }
 
 }
