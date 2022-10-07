@@ -18,6 +18,8 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using System.Net;
+
 namespace KuiperZone.Implink.Routines.Api.Imp;
 
 /// <summary>
@@ -28,10 +30,16 @@ public class ImpException : InvalidOperationException
     /// <summary>
     /// Constructor.
     /// </summary>
-    public ImpException(string message = "Request failed", int status = 400)
+    public ImpException(string message = "Request failed", int code = 400)
         : base(message)
     {
-        StatusCode = status;
+        StatusCode = code;
+    }
+
+    public ImpException(string message, HttpStatusCode code)
+        : base(message)
+    {
+        StatusCode = (int) code;
     }
 
     /// <summary>

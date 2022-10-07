@@ -26,6 +26,11 @@ namespace KuiperZone.Implink.Routines.Api;
 public class SubmitPost : JsonSerializable
 {
     /// <summary>
+    /// Gets or sets the name ID.
+    /// </summary>
+    public string? NameId { get; set; }
+
+    /// <summary>
     /// Gets or sets the message ID. If specified, it should be a unique string possibly composed of the
     /// user name ID and random or high precision time value. If omitted, the receiver will generate
     /// one itself.
@@ -47,4 +52,5 @@ public class SubmitPost : JsonSerializable
     /// Gets or sets a link URL contained in the message.
     /// </summary>
     public string? LinkUrl { get; set; }
+
 }

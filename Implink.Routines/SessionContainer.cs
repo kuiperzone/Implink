@@ -41,9 +41,9 @@ public class SessionContainer : IClientApi, IDisposable
     }
 
     /// <summary>
-    /// Implements <see cref="IClientApi.Profile"/>.
+    /// Gets the profile.
     /// </summary>
-    public IReadOnlyClientProfile Profile { get; }
+    public readonly IReadOnlyClientProfile Profile;
 
     /// <summary>
     /// Gets requests per second.

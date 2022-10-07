@@ -28,11 +28,6 @@ namespace KuiperZone.Implink.Routines.Api;
 public interface IClientApi
 {
     /// <summary>
-    /// Gets the client profile.
-    /// </summary>
-    IReadOnlyClientProfile Profile { get; }
-
-    /// <summary>
     /// Sends the <see cref="SubmitPost"/> message and returns the status code.
     /// Any exception will be interepted as InternalServerError 500.
     /// </summary>

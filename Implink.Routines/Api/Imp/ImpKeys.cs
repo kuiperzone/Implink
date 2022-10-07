@@ -19,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 using System.Globalization;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -95,7 +96,7 @@ public class ImpKeys
         {
             if (!long.TryParse(timestamp, out long uxsec))
             {
-                throw new ImpException("Invalid timestamp", 401);
+                throw new ImpException("Invalid timestamp", HttpStatusCode.Unauthorized);
             }
 
             if (AllowedDeltaSeconds > 0)
@@ -104,7 +105,7 @@ public class ImpKeys
 
                 if (now - uxsec > AllowedDeltaSeconds || uxsec - now > AllowedDeltaSeconds)
                 {
-                    throw new ImpException("Timestamp difference too large", 401);
+                    throw new ImpException("Timestamp difference too large", HttpStatusCode.Unauthorized);
                 }
             }
 
@@ -112,7 +113,7 @@ public class ImpKeys
 
             if (comp != sign)
             {
-                throw new ImpException("Authentication failed", 401);
+                throw new ImpException("Authentication failed", HttpStatusCode.Unauthorized);
             }
         }
     }

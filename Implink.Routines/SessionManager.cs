@@ -18,6 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using System.Net;
 using KuiperZone.Implink.Routines.Api;
 
 namespace KuiperZone.Implink.Routines.RoutingProfile;
@@ -27,23 +28,25 @@ namespace KuiperZone.Implink.Routines.RoutingProfile;
 /// </summary>
 public class SessionManager : IClientApi, IDisposable
 {
-    private object _syncObj = new();
-    private Dictionary<string, SessionContainer> _hash = new();
-    private Dictionary<string, List<SessionContainer>> _dictionary = new(StringComparer.InvariantCultureIgnoreCase);
+    private readonly object _syncObj = new();
+    private readonly Dictionary<string, SessionContainer> _hash = new();
+    private readonly Dictionary<string, List<SessionContainer>> _dictionary = new(StringComparer.InvariantCultureIgnoreCase);
+
+    public int Count
+    {
+        get { return _hash.Count; }
+    }
+
+    public static bool IsValid(SubmitPost submit)
+    {
+        return !string.IsNullOrWhiteSpace(submit.NameId) && !string.IsNullOrWhiteSpace(submit.Text);
+    }
 
     public void Clear()
     {
         lock (_syncObj)
         {
             ClearNoSync();
-        }
-    }
-
-    public bool Exists(IReadOnlyClientProfile profile)
-    {
-        lock (_syncObj)
-        {
-            return ExistsNoSync(profile);
         }
     }
 
@@ -71,11 +74,82 @@ public class SessionManager : IClientApi, IDisposable
         }
     }
 
-    public int SubmitPostRequest(SubmitPost sumbit, out SubmitResponse response)
+    public int Remove(string? nameId)
     {
         lock (_syncObj)
         {
-            return GetNoSync(nameId);
+            return RemoveNoSync(nameId);
+        }
+    }
+
+    public bool Reload(IEnumerable<IReadOnlyClientProfile> profiles)
+    {
+        var newDictionary = new Dictionary<string, IReadOnlyClientProfile>(StringComparer.InvariantCultureIgnoreCase);
+
+        foreach (var item in profiles)
+        {
+            item.Assert();
+            newDictionary.TryAdd(item.GetKey(), item);
+        }
+
+        bool modified = false;
+
+        lock (_syncObj)
+        {
+            foreach (var oldContainer in _hash.Values.ToArray())
+            {
+                var key = oldContainer.Profile.GetKey();
+
+                if (!newDictionary.TryGetValue(key, out IReadOnlyClientProfile? newProfile) || !newProfile.Equals(oldContainer.Profile))
+                {
+                    oldContainer.Dispose();
+                    _hash.Remove(key);
+                    _dictionary.Remove(oldContainer.Profile.NameId);
+                    modified = true;
+                }
+            }
+
+            foreach (var item in newDictionary.Values)
+            {
+                modified |= AddNoSync(item);
+            }
+        }
+
+        return modified;
+    }
+
+    public int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
+    {
+        response = new();
+
+        try
+        {
+            if (!IsValid(submit))
+            {
+                response.ErrorReason = "Name or text undefined";
+                return (int)HttpStatusCode.BadRequest;
+            }
+
+            var clients = Get(submit.NameId);
+
+            if (clients.Length != 0)
+            {
+                foreach (var item in clients)
+                {
+                    var tuple = Tuple.Create(item, submit);
+                    ThreadPool.QueueUserWorkItem(SubmitThread, tuple);
+                }
+
+                return (int)HttpStatusCode.OK;
+            }
+
+            response.ErrorReason = "No client for " + submit.NameId;
+            return (int)HttpStatusCode.BadRequest;
+        }
+        catch (Exception e)
+        {
+            response.ErrorReason = e.Message;
+            return (int)HttpStatusCode.InternalServerError;
         }
     }
 
@@ -116,12 +190,7 @@ public class SessionManager : IClientApi, IDisposable
 
     private bool ExistsNoSync(string? nameId)
     {
-        return !string.IsNullOrEmpty(nameId) && !_dictionary.ContainsKey(nameId);
-    }
-
-    private bool ExistsNoSync(IReadOnlyClientProfile profile)
-    {
-        return _hash.ContainsKey(profile.GetKey());
+        return !string.IsNullOrEmpty(nameId) && _dictionary.ContainsKey(nameId);
     }
 
     private IClientApi[] GetNoSync(string? nameId)
@@ -136,7 +205,7 @@ public class SessionManager : IClientApi, IDisposable
 
     private bool AddNoSync(IReadOnlyClientProfile profile)
     {
-        if (!ExistsNoSync(profile))
+        if (!_hash.ContainsKey(profile.GetKey()))
         {
             var session = new SessionContainer(profile);
 
@@ -154,4 +223,23 @@ public class SessionManager : IClientApi, IDisposable
 
         return false;
     }
+
+    private int RemoveNoSync(string? nameId)
+    {
+        int count = 0;
+
+        if (!string.IsNullOrEmpty(nameId) && _dictionary.TryGetValue(nameId, out List<SessionContainer>? list))
+        {
+            count += 1;
+            _dictionary.Remove(nameId);
+
+            foreach (var item in list)
+            {
+                _hash.Remove(item.Profile.GetKey());
+            }
+        }
+
+        return count;
+    }
+
 }

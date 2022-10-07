@@ -18,6 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.AspNetCore.Http;
@@ -90,7 +91,7 @@ public class ImpServerDecoder
             // Do this before HMAC
             if (_keys.Public != request.Headers[PUBLIC_KEY])
             {
-                throw new ImpException("Authentication failed", 401);
+                throw new ImpException("Authentication failed", HttpStatusCode.Unauthorized);
             }
 
             string timestamp = GetHeader(request.Headers, TIMESTAMP_KEY);
@@ -136,7 +137,7 @@ public class ImpServerDecoder
             return rslt;
         }
 
-        throw new ImpException($"Header {key} undefined", 400);
+        throw new ImpException($"Header {key} undefined");
     }
 
     private static string GetHeader(HttpRequestHeaders headers, string key)

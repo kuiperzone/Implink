@@ -63,14 +63,14 @@ public abstract class ClientSession : IClientApi, IDisposable
     }
 
     /// <summary>
+    /// Gets the profile.
+    /// </summary>
+    public readonly IReadOnlyClientProfile Profile;
+
+    /// <summary>
     /// Gets the authentication dictionary. The dictionary is empty if no authentication is specified.
     /// </summary>
     public readonly IReadOnlyDictionary<string, string> AuthDictionary;
-
-    /// <summary>
-    /// Implements <see cref="IClientApi.Profile"/>.
-    /// </summary>
-    public IReadOnlyClientProfile Profile { get; }
 
     /// <summary>
     /// Implements <see cref="IClientApi.SubmitPostRequest"/> as abstract.
