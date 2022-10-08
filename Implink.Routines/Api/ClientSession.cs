@@ -18,59 +18,48 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using KuiperZone.Implink.Routines.RoutingProfile;
+using KuiperZone.Implink.Routines.Util;
 
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// Abstract base class for a client session with an external vendor. The concrete subclass is to
-/// implement API conversion and necessary calls over the wire.
+/// Abstract base class for a client session with an external vendor. The concrete
+/// subclass is to implement API conversion and necessary calls over the wire.
 /// </summary>
 public abstract class ClientSession : IClientApi, IDisposable
 {
-    public ClientSession(IReadOnlyClientProfile profile)
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <exception cref="ArgumentException">Invalid profile</exception>
+    public ClientSession(IReadOnlyRouteProfile profile, bool remoteTerminated)
     {
-        profile.Assert();
+        profile.AssertValidity();
+        IsRemoteTerminated = remoteTerminated;
         Profile = profile;
-
-        var auth = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AuthDictionary = auth;
-
-        if (!string.IsNullOrWhiteSpace(profile.Authentication))
-        {
-            var split = profile.Authentication.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var pair in split)
-            {
-                var pos = pair.IndexOf('=');
-
-                if (pos > 0 && pos < pair.Length - 1)
-                {
-                    var k = pair.Substring(0, pos).Trim();
-                    var v = pair.Substring(pos + 1).Trim();
-
-                    if (k.Length != 0 && v.Length != 0)
-                    {
-                        auth.Add(k, v);
-                        continue;
-                    }
-                }
-
-                throw new ArgumentException($"Invalid {nameof(AuthDictionary)} key-value pair: {pair}");
-            }
-        }
-
+        AuthDictionary = DictionaryParser.ToDictionary(profile.Authentication);
+        Categories = DictionaryParser.ToSet(profile.Categories);
     }
+
+    /// <summary>
+    /// Implements <see cref="IClientApi.IsRemoteTerminated"/>.
+    /// </summary>
+    public bool IsRemoteTerminated { get; }
 
     /// <summary>
     /// Gets the profile.
     /// </summary>
-    public readonly IReadOnlyClientProfile Profile;
+    public IReadOnlyRouteProfile Profile { get; }
 
     /// <summary>
     /// Gets the authentication dictionary. The dictionary is empty if no authentication is specified.
     /// </summary>
-    public readonly IReadOnlyDictionary<string, string> AuthDictionary;
+    public IReadOnlyDictionary<string, string> AuthDictionary { get; }
+
+    /// <summary>
+    /// Gets the categories set.
+    /// </summary>
+    public IReadOnlySet<string> Categories { get; }
 
     /// <summary>
     /// Implements <see cref="IClientApi.SubmitPostRequest"/> as abstract.
@@ -87,7 +76,7 @@ public abstract class ClientSession : IClientApi, IDisposable
     }
 
     /// <summary>
-    /// Can be overridden.
+    /// Base implementation does nothing.
     /// </summary>
     protected virtual void Dispose(bool disposing)
     {

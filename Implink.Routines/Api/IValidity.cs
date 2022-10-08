@@ -21,12 +21,21 @@
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// A base class for response body information.
+/// Interface allowing caller of a data type to assert validity.
 /// </summary>
-public class Response : JsonSerializable
+public interface IValidity
 {
     /// <summary>
-    /// Gets or sets an optional error reason message.
+    /// Checks appropriate data and returns true if populated with legal values. The result
+    /// is true on success and "message" is empty. If the return value is false, the message
+    /// should contain an information string. A positive result is not a guarantee.
     /// </summary>
-    public string? ErrorReason { get; set; }
+    bool CheckValidity(out string message);
+
+    /// <summary>
+    /// Asserts appropriate data is populated with legal values. On failure, it throws
+    /// <see cref="ArgumentException"/>.
+    /// </summary>
+    /// <exception cref="ArgumentException">Failure message</exception>
+    void AssertValidity();
 }

@@ -23,12 +23,22 @@ namespace KuiperZone.Implink.Routines.Api;
 /// <summary>
 /// The POST submit message body.
 /// </summary>
-public class SubmitPost : JsonSerializable
+public class SubmitPost : RequestMessage
 {
     /// <summary>
-    /// Gets or sets the name ID.
+    /// Gets or sets the mandatory group ID.
     /// </summary>
-    public string? NameId { get; set; }
+    public string NameId { get; set; } = "";
+
+    /// <summary>
+    /// Get or sets the user name.
+    /// </summary>
+    public string UserName { get; set; } = "Anonymous";
+
+    /// <summary>
+    /// Gets or sets optional category name.
+    /// </summary>
+    public string? Category { get; set; }
 
     /// <summary>
     /// Gets or sets the message ID. If specified, it should be a unique string possibly composed of the
@@ -44,13 +54,40 @@ public class SubmitPost : JsonSerializable
     public string? ParentId { get; set; }
 
     /// <summary>
-    /// Gets or sets the message text.
+    /// Gets or sets the mandatory message text.
     /// </summary>
-    public string? Text { get; set; }
+    public string Text { get; set; } = "";
 
     /// <summary>
     /// Gets or sets a link URL contained in the message.
     /// </summary>
     public string? LinkUrl { get; set; }
+
+    /// <summary>
+    /// Implements <see cref="JsonSerializable.CheckValidity(out string)"/>.
+    /// </summary>
+    public override bool CheckValidity(out string message)
+    {
+        if (string.IsNullOrWhiteSpace(NameId) || NameId.Length > 64)
+        {
+            message = $"{nameof(NameId)} undefined or invalid";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(UserName) || UserName.Length > 64)
+        {
+            message = $"{nameof(UserName)} undefined or invalid";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(Text))
+        {
+            message = $"{nameof(Text)} undefined";
+            return false;
+        }
+
+        message = "";
+        return true;
+    }
 
 }

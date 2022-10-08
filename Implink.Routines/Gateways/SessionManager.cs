@@ -21,27 +21,50 @@
 using System.Net;
 using KuiperZone.Implink.Routines.Api;
 
-namespace KuiperZone.Implink.Routines.RoutingProfile;
+namespace KuiperZone.Implink.Routines.Gateways;
 
 /// <summary>
-/// A serializable class which implements <see cref="IReadOnlyRouteProfile"/> and provides setters.
+/// Manages a collection of client sessions.
 /// </summary>
 public class SessionManager : IClientApi, IDisposable
 {
     private readonly object _syncObj = new();
-    private readonly Dictionary<string, SessionContainer> _hash = new();
-    private readonly Dictionary<string, List<SessionContainer>> _dictionary = new(StringComparer.InvariantCultureIgnoreCase);
+    private readonly Dictionary<string, SessionContainer> _keyed = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<SessionContainer>> _named = new(StringComparer.InvariantCultureIgnoreCase);
 
+    /// <summary>
+    /// Default constructor.
+    /// </summary>
+    public SessionManager(bool remoteTerminated = true)
+    {
+        IsRemoteTerminated = remoteTerminated;
+    }
+
+    /// <summary>
+    /// Constructor with initial sequence of client profiles.
+    /// </summary>
+    public SessionManager(IEnumerable<IReadOnlyRouteProfile> profiles, bool remoteTerminated)
+    {
+        IsRemoteTerminated = remoteTerminated;
+        Reload(profiles);
+    }
+
+    /// <summary>
+    /// Implements <see cref="IClientApi.IsRemoteTerminated"/>.
+    /// </summary>
+    public bool IsRemoteTerminated { get; }
+
+    /// <summary>
+    /// Gets the number of sessions.
+    /// </summary>
     public int Count
     {
-        get { return _hash.Count; }
+        get { return _keyed.Count; }
     }
 
-    public static bool IsValid(SubmitPost submit)
-    {
-        return !string.IsNullOrWhiteSpace(submit.NameId) && !string.IsNullOrWhiteSpace(submit.Text);
-    }
-
+    /// <summary>
+    /// Clears all.
+    /// </summary>
     public void Clear()
     {
         lock (_syncObj)
@@ -50,6 +73,9 @@ public class SessionManager : IClientApi, IDisposable
         }
     }
 
+    /// <summary>
+    /// Returns true if one or more clients exist with the given name.
+    /// </summary>
     public bool Exists(string? nameId)
     {
         lock (_syncObj)
@@ -58,6 +84,9 @@ public class SessionManager : IClientApi, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets the clients with matching name.
+    /// </summary>
     public IClientApi[] Get(string? nameId)
     {
         lock (_syncObj)
@@ -66,7 +95,10 @@ public class SessionManager : IClientApi, IDisposable
         }
     }
 
-    public bool Add(IReadOnlyClientProfile profile)
+    /// <summary>
+    /// Adds a new session with given profile. The result is true on success, or false if already exists.
+    /// </summary>
+    public bool Add(IReadOnlyRouteProfile profile)
     {
         lock (_syncObj)
         {
@@ -74,6 +106,9 @@ public class SessionManager : IClientApi, IDisposable
         }
     }
 
+    /// <summary>
+    /// Removes one or more sessions with given name. The result is the number of sessions removed.
+    /// </summary>
     public int Remove(string? nameId)
     {
         lock (_syncObj)
@@ -82,49 +117,78 @@ public class SessionManager : IClientApi, IDisposable
         }
     }
 
-    public bool Reload(IEnumerable<IReadOnlyClientProfile> profiles)
+    /// <summary>
+    /// Loads sessions for given profiles. Existing sessions with unchanged profile are maintained.
+    /// The result is true if session list is modified.
+    /// </summary>
+    public bool Reload(IEnumerable<IReadOnlyRouteProfile> profiles, out string? info)
     {
-        var newDictionary = new Dictionary<string, IReadOnlyClientProfile>(StringComparer.InvariantCultureIgnoreCase);
+        info = null;
+        var newDictionary = new Dictionary<string, IReadOnlyRouteProfile>(StringComparer.InvariantCultureIgnoreCase);
 
         foreach (var item in profiles)
         {
-            item.Assert();
-            newDictionary.TryAdd(item.GetKey(), item);
+            if (!string.IsNullOrWhiteSpace(item.NameId))
+            {
+                if (!newDictionary.TryAdd(item.GetKey(), item))
+                {
+                    info ??= $"{nameof(RouteProfile.NameId)} and {nameof(RouteProfile.BaseAddress)} combination not unique for {item.NameId}";
+                }
+            }
+            else
+            {
+                info ??= $"{nameof(RouteProfile)}.{nameof(RouteProfile.NameId)} is mandatory";
+            }
         }
 
         bool modified = false;
 
         lock (_syncObj)
         {
-            foreach (var oldContainer in _hash.Values.ToArray())
+            // Remove items no longer in given profiles
+            foreach (var oldContainer in _keyed.Values.ToArray())
             {
                 var key = oldContainer.Profile.GetKey();
 
-                if (!newDictionary.TryGetValue(key, out IReadOnlyClientProfile? newProfile) || !newProfile.Equals(oldContainer.Profile))
+                if (!newDictionary.TryGetValue(key, out IReadOnlyRouteProfile? newProfile) || !newProfile.Equals(oldContainer.Profile))
                 {
                     oldContainer.Dispose();
-                    _hash.Remove(key);
-                    _dictionary.Remove(oldContainer.Profile.NameId);
+                    _keyed.Remove(key);
+                    _named.Remove(oldContainer.Profile.NameId);
                     modified = true;
                 }
             }
 
+            // Add new ones
             foreach (var item in newDictionary.Values)
             {
-                modified |= AddNoSync(item);
+                try
+                {
+                    modified |= AddNoSync(item);
+                }
+                catch (Exception e)
+                {
+                    // Log only
+                    info = e.Message;
+                }
             }
         }
 
         return modified;
     }
 
+    /// <summary>
+    /// Implements <see cref="IClientApi.SubmitPostRequest"/> and sends post to all clients with matching
+    /// name. Sending is performed in other threads and the call does not wait, therefore, for the response.
+    /// The result indicates success if there is a client with a matching name.
+    /// </summary>
     public int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
     {
         response = new();
 
         try
         {
-            if (!IsValid(submit))
+            if (string.IsNullOrWhiteSpace(submit.NameId) || string.IsNullOrWhiteSpace(submit.Text))
             {
                 response.ErrorReason = "Name or text undefined";
                 return (int)HttpStatusCode.BadRequest;
@@ -153,6 +217,9 @@ public class SessionManager : IClientApi, IDisposable
         }
     }
 
+    /// <summary>
+    /// Disposes.
+    /// </summary>
     public void Dispose()
     {
         GC.SuppressFinalize(this);
@@ -160,7 +227,7 @@ public class SessionManager : IClientApi, IDisposable
 
         lock (_syncObj)
         {
-            list = _hash.Values.ToArray();
+            list = _keyed.Values.ToArray();
             ClearNoSync();
         }
 
@@ -184,18 +251,18 @@ public class SessionManager : IClientApi, IDisposable
 
     private void ClearNoSync()
     {
-        _hash.Clear();
-        _dictionary.Clear();
+        _keyed.Clear();
+        _named.Clear();
     }
 
     private bool ExistsNoSync(string? nameId)
     {
-        return !string.IsNullOrEmpty(nameId) && _dictionary.ContainsKey(nameId);
+        return !string.IsNullOrEmpty(nameId) && _named.ContainsKey(nameId);
     }
 
     private IClientApi[] GetNoSync(string? nameId)
     {
-        if (!string.IsNullOrEmpty(nameId) && _dictionary.TryGetValue(nameId, out List<SessionContainer>? list))
+        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<SessionContainer>? list))
         {
             return list.ToArray();
         }
@@ -203,18 +270,18 @@ public class SessionManager : IClientApi, IDisposable
         return Array.Empty<IClientApi>();
     }
 
-    private bool AddNoSync(IReadOnlyClientProfile profile)
+    private bool AddNoSync(IReadOnlyRouteProfile profile)
     {
-        if (!_hash.ContainsKey(profile.GetKey()))
+        if (!_keyed.ContainsKey(profile.GetKey()))
         {
-            var session = new SessionContainer(profile);
+            var session = new SessionContainer(profile, IsRemoteTerminated);
 
-            _hash.Add(profile.GetKey(), session);
+            _keyed.Add(profile.GetKey(), session);
 
-            if (!_dictionary.TryGetValue(profile.NameId, out List<SessionContainer>? list))
+            if (!_named.TryGetValue(profile.NameId, out List<SessionContainer>? list))
             {
                 list = new();
-                _dictionary.Add(profile.NameId, list);
+                _named.Add(profile.NameId, list);
             }
 
             list.Add(session);
@@ -228,14 +295,14 @@ public class SessionManager : IClientApi, IDisposable
     {
         int count = 0;
 
-        if (!string.IsNullOrEmpty(nameId) && _dictionary.TryGetValue(nameId, out List<SessionContainer>? list))
+        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<SessionContainer>? list))
         {
             count += 1;
-            _dictionary.Remove(nameId);
+            _named.Remove(nameId);
 
             foreach (var item in list)
             {
-                _hash.Remove(item.Profile.GetKey());
+                _keyed.Remove(item.Profile.GetKey());
             }
         }
 

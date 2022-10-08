@@ -19,7 +19,6 @@
 // -----------------------------------------------------------------------------
 
 using System.Text;
-using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api.Imp;
 
@@ -31,8 +30,8 @@ public sealed class ImpClientSession : HttpClientSession
     /// <summary>
     /// Constructor.
     /// </summary>
-    public ImpClientSession(IReadOnlyClientProfile profile)
-        : base(profile, new ImpSignerFactory(), "application/json")
+    public ImpClientSession(IReadOnlyRouteProfile profile, bool remoteTerminated)
+        : base(profile, new ImpSignerFactory(), remoteTerminated, "application/json")
     {
     }
 
@@ -44,7 +43,7 @@ public sealed class ImpClientSession : HttpClientSession
         var msg = new HttpRequestMessage(HttpMethod.Post, nameof(SubmitPost));
         msg.Content = new StringContent(submit.ToString(), Encoding.UTF8, "application/json");
 
-        var tuple = SignAndSend(msg);
+        var tuple = IsRemoteTerminated ? SignAndSend(msg) : Send(msg);
         response = JsonSerializable.Deserialize<SubmitResponse>(tuple.Body);
         response.ErrorReason = tuple.ErrorReason;
         return tuple.StatusCode;

@@ -21,12 +21,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace KuiperZone.Implink.Routines;
+namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
 /// A base class for all JSON serializable data for convenience and to enforce consistency.
 /// </summary>
-public class JsonSerializable
+public abstract class JsonSerializable : IValidity
 {
     /// <summary>
     /// Common JsonSerializerOptions value.
@@ -42,6 +42,22 @@ public class JsonSerializable
     {
         return JsonSerializer.Deserialize<T>(s ?? "", JsonOpts) ?? new T();
     }
+
+    /// <summary>
+    /// Implements <see cref="IValidity.AssertValidity"/>.
+    /// </summary>
+    public void AssertValidity()
+    {
+        if (!CheckValidity(out string message))
+        {
+            throw new ArgumentException(message);
+        }
+    }
+
+    /// <summary>
+    /// Abstract <see cref="IValidity.CheckValidity(out string)"/>.
+    /// </summary>
+    public abstract bool CheckValidity(out string message);
 
     /// <summary>
     /// Overrides to output serializaed JSON string.

@@ -18,12 +18,24 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines.RoutingProfile;
+namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// Extends <see cref="IReadOnlyRouteProfile"/> to provide additional fields for server routing.
+/// A base class for response body content.
 /// </summary>
-public interface IReadOnlyServerProfile : IReadOnlyRouteProfile
+public class ResponseMessage : JsonSerializable, IValidity
 {
+    /// <summary>
+    /// Gets or sets an optional error reason message.
+    /// </summary>
+    public string? ErrorReason { get; set; }
 
+    /// <summary>
+    /// Implements <see cref="JsonSerializable.CheckValidity(out string)"/> but always returns true.
+    /// </summary>
+    public override bool CheckValidity(out string message)
+    {
+        message = "";
+        return true;
+    }
 }

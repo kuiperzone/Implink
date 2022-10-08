@@ -21,9 +21,9 @@
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// The response body for <see cref="SubmitPost"/>.
+/// Response for <see cref="SubmitPost"/>.
 /// </summary>
-public class SubmitResponse : Response
+public class SubmitResponse : ResponseMessage
 {
     /// <summary>
     /// Gets or sets the message ID. It will either be the value provided in the <see cref="SubmitPost"/>,

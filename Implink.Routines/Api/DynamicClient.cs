@@ -20,59 +20,60 @@
 
 using System.Net;
 using KuiperZone.Implink.Routines.Api;
-using KuiperZone.Implink.Routines.RoutingProfile;
+using KuiperZone.Implink.Routines.Api.Imp;
+using KuiperZone.Implink.Routines.Util;
 
-namespace KuiperZone.Implink.Routines;
+namespace KuiperZone.Implink.Routines.Gateways;
 
 /// <summary>
-/// Interface which provide client request calls.
+/// A wrapper class for instances of <see cref="ClientSession"/>. This wrapper implements
+/// <see cref="IClientApi"/>, calling on the internal session. It's purpose is twofold:
+/// to allow dynamic contruction based on <see cref="IReadOnlyRouteProfile.ApiKind"/>, and
+/// to add throttling to request calls.
 /// </summary>
-public class SessionContainer : IClientApi, IDisposable
+public class DynamicClient : IClientApi, IDisposable
 {
-    private object _syncObj = new();
-    private DateTime _epoch = DateTime.UtcNow;
-    private long _counter;
-    private ClientSession _session;
+    private readonly ClientSession _session;
+    private readonly RateCounter _counter = new();
 
-    public SessionContainer(IReadOnlyClientProfile profile)
+    /// <summary>
+    /// Constructor. This instance will own the session and dispose of it.
+    /// </summary>
+    public DynamicClient(ClientSession session)
+    {
+        _session = session;
+        Profile = session.Profile;
+        IsRemoteTerminated = session.IsRemoteTerminated;
+    }
+
+    /// <summary>
+    /// Constructor in which the session is created according to
+    /// <see cref="IReadOnlyRouteProfile.ApiKind"/>. Where remoteTerminated is false, the API kind is
+    /// ignored as the session is always an instance of <see cref="ImpClientSession"/>.
+    /// </summary>
+    public DynamicClient(IReadOnlyRouteProfile profile, bool remoteTerminated)
     {
         Profile = profile;
-        _session = ClientFactory.Create(profile);
+        IsRemoteTerminated = remoteTerminated;
+        _session = remoteTerminated ? ClientFactory.Create(profile) : new ImpClientSession(profile, false);
     }
+
+    /// <summary>
+    /// Implements <see cref="IClientApi.IsRemoteTerminated"/>.
+    /// </summary>
+    public bool IsRemoteTerminated { get; }
 
     /// <summary>
     /// Gets the profile.
     /// </summary>
-    public readonly IReadOnlyClientProfile Profile;
-
-    /// <summary>
-    /// Gets requests per second.
-    /// </summary>
-    public double GetRate()
-    {
-        lock (_syncObj)
-        {
-            var c = Interlocked.Or(ref _counter, 0);
-            var now = DateTime.UtcNow;
-            var sec = (now - _epoch).TotalSeconds;
-
-            if (sec < 0 || sec > 60)
-            {
-                sec = 60;
-                _epoch = now;
-                _counter = 0;
-            }
-
-            return c / sec;
-        }
-    }
+    public IReadOnlyRouteProfile Profile { get; }
 
     /// <summary>
     /// Implements <see cref="IClientApi.SubmitPostRequest"/>.
     /// </summary>
     public int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
     {
-        if (Profile.ThrottleRate > 0 && GetRate() >= Profile.ThrottleRate)
+        if (_counter.IsThrottled(Profile.ThrottleRate))
         {
             response = new();
             response.ErrorReason = "Request throttled";
@@ -82,7 +83,7 @@ public class SessionContainer : IClientApi, IDisposable
         try
         {
             var rslt = _session.SubmitPostRequest(submit, out response);
-            Interlocked.Increment(ref _counter);
+            _counter.Increment();
             return rslt;
         }
         catch (Exception e)

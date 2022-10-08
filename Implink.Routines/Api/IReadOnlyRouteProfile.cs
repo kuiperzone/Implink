@@ -18,18 +18,29 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines.RoutingProfile;
+namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// Readonly route data common to both client and server routing.
+/// Readonly route profile data common to both client and server routing.
 /// </summary>
-public interface IReadOnlyRouteProfile : IEquatable<IReadOnlyRouteProfile>
+public interface IReadOnlyRouteProfile : IValidity, IEquatable<IReadOnlyRouteProfile>
 {
     /// <summary>
-    /// Gets the mandatory routing name. This is to be a "group name", although may in principle
-    /// be a user name.
+    /// Gets the mandatory routing name (case insensitive).
     /// </summary>
     string NameId { get; }
+
+    /// <summary>
+    /// Gets the optional routing categories. It may contain a comma separated case insensitive list of category
+    /// names. If an incoming submission matches <see cref="NameId"/>, it must also match one of the values in
+    /// <see cref="Categories"/> if not empty.
+    /// </summary>
+    string Categories { get; }
+
+    /// <summary>
+    /// Gets the API technology kind. This is a string contain a single supported value, i.e. "Twitter" or "IMPv1".
+    /// </summary>
+    string? ApiKind { get; }
 
     /// <summary>
     /// Gets the mandatory API base URL. The value must begin with "https://" or "http://". For outbound, this would
@@ -40,12 +51,17 @@ public interface IReadOnlyRouteProfile : IEquatable<IReadOnlyRouteProfile>
     string BaseAddress { get; }
 
     /// <summary>
-    /// Gets the vendor specific authentication properties. The value is a mandatory a key-value sequence seperated
+    /// Gets the vendor specific authentication properties. The value is a mandatory key-value sequence seperated
     /// by comma. I.e. of form "Key1=Value1,Key2=Value2". The call should assume keys and values are case-sensitive.
     /// For IMPv1 on the public API, PRIVATE and PUBLIC key-values must be given, specifying a minimum of 12
     /// random characters each (take care to exclude comma). Example: "PRIVATE=Fyhf$34hjfTh94,PUBLIC=KvBd73!sdL84B".
     /// </summary>
     string Authentication { get; }
+
+    /// <summary>
+    /// Gets optional user-agent string. Used where supported by the API.
+    /// </summary>
+    string? UserAgent { get; }
 
     /// <summary>
     /// Gets a maximum request rate in requests per minute. It applies per client. Requests above this rate will
@@ -63,11 +79,5 @@ public interface IReadOnlyRouteProfile : IEquatable<IReadOnlyRouteProfile>
     /// Returns a unique key for the instance, formed from <see cref="NameId"/> and <see cref="BaseAddress"/>.
     /// </summary>
     string GetKey();
-
-    /// <summary>
-    /// Asserts that properties are (or at least appear) valid.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Invalid RoutingProfile</exception>
-    void Assert();
 
 }

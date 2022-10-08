@@ -20,41 +20,54 @@
 
 using KuiperZone.Implink.Routines.Api.Imp;
 using KuiperZone.Implink.Routines.Api.Thirdparty;
-using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
-/// Creates clients according to <see cref="IReadOnlyClientProfile.ApiKind"/>.
+/// Creates clients according to <see cref="IReadOnlyRouteProfile.ApiKind"/>.
 /// </summary>
 public static class ClientFactory
 {
     /// <summary>
-    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. IMP API.
+    /// Valid <see cref="IReadOnlyRouteProfile.ApiKind"/>. IMP API.
     /// </summary>
     public const string ImpV1 = "IMPv1";
 
     /// <summary>
-    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Twitter.
+    /// Valid <see cref="IReadOnlyRouteProfile.ApiKind"/>. Twitter.
     /// </summary>
     public const string Twitter = "Twitter";
 
     /// <summary>
-    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Facebook.
+    /// Valid <see cref="IReadOnlyRouteProfile.ApiKind"/>. Facebook.
     /// </summary>
     public const string Facebook = "Facebook";
+
+    /// <summary>
+    /// Returns true if kind is a valid api name.
+    /// </summary>
+    public static bool IsVal3idApi(string? kind)
+    {
+        switch (kind?.ToLowerInvariant())
+        {
+            case ImpV1:
+            case Twitter: return true;
+            default: return false;
+        }
+    }
 
     /// <summary>
     /// Creates new instance with given route profile.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid ApiKind</exception>
-    public static ClientSession Create(IReadOnlyClientProfile profile)
+    public static ClientSession Create(IReadOnlyRouteProfile profile)
     {
-        switch (profile.ApiKind.ToLowerInvariant())
+        switch (profile.ApiKind?.ToLowerInvariant())
         {
-            case ImpV1: return new ImpClientSession(profile);
+            case ImpV1: return new ImpClientSession(profile, true);
             case Twitter: return new TwitterClientSession(profile);
-            default: throw new ArgumentException($"Invalid or unknown {nameof(IReadOnlyClientProfile.ApiKind)} {profile.ApiKind}");
+            default: throw new ArgumentException(
+                $"Invalid or unknown {nameof(IReadOnlyRouteProfile.ApiKind)} {profile.ApiKind} for route {profile.NameId}");
         }
     }
 }

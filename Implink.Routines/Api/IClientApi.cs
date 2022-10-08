@@ -18,8 +18,6 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using KuiperZone.Implink.Routines.RoutingProfile;
-
 namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
@@ -27,6 +25,13 @@ namespace KuiperZone.Implink.Routines.Api;
 /// </summary>
 public interface IClientApi
 {
+    /// <summary>
+    /// Gets whether the client is remote terminated, i.e. requests are sent out
+    /// to third-party vendors. Where false, requests are sent over local network
+    /// to an internal platform module (API is always native IMP).
+    /// </summary>
+    bool IsRemoteTerminated { get; }
+
     /// <summary>
     /// Sends the <see cref="SubmitPost"/> message and returns the status code.
     /// Any exception will be interepted as InternalServerError 500.

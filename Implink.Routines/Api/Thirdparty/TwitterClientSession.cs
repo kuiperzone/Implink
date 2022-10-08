@@ -21,7 +21,6 @@
 using System.Globalization;
 using System.Net;
 using CoreTweet;
-using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api.Thirdparty;
 
@@ -46,8 +45,8 @@ public sealed class TwitterClientSession : ClientSession, IClientApi
     /// <summary>
     /// Constructor.
     /// </summary>
-    public TwitterClientSession(IReadOnlyClientProfile profile)
-        : base(profile)
+    public TwitterClientSession(IReadOnlyRouteProfile profile)
+        : base(profile, true)
     {
         _key = AuthDictionary["consumer_key"];
         _secret = AuthDictionary["consumer_secret"];

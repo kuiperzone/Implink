@@ -20,7 +20,7 @@
 
 using System.Text;
 using System.Text.Json;
-using KuiperZone.Implink.Routines.RoutingProfile;
+using KuiperZone.Implink.Routines.Api;
 
 namespace KuiperZone.Implink.Routines.Database;
 
@@ -29,8 +29,8 @@ namespace KuiperZone.Implink.Routines.Database;
 /// </summary>
 public class RoutingDatabase : DatabaseCore
 {
-    private readonly IEnumerable<IReadOnlyServerProfile>? _servers;
-    private readonly IEnumerable<IReadOnlyClientProfile>? _clients;
+    private readonly IEnumerable<IReadOnlyRouteProfile>? _servers;
+    private readonly IEnumerable<IReadOnlyRouteProfile>? _clients;
 
     /// <summary>
     /// Constructor with parameters.
@@ -40,8 +40,8 @@ public class RoutingDatabase : DatabaseCore
     {
         if (Kind == FileKind)
         {
-            ServerFilename = Path.Combine(Connection, "ServerProfiles.json");
-            ClientFilename = Path.Combine(Connection, "ClientProfiles.json");
+            ServerFilename = Path.Combine(Connection, "ServerRoutes.json");
+            ClientFilename = Path.Combine(Connection, "ClientRoutes.json");
         }
     }
 
@@ -58,7 +58,7 @@ public class RoutingDatabase : DatabaseCore
     /// <summary>
     /// Queries all server routes. The result is a new instance on each call.
     /// </summary>
-    public IEnumerable<IReadOnlyServerProfile> QueryAllServerRoutes()
+    public IEnumerable<IReadOnlyRouteProfile> QueryAllServerRoutes()
     {
         if (ServerFilename != null)
         {
@@ -68,21 +68,21 @@ public class RoutingDatabase : DatabaseCore
             try
             {
                 var text = File.ReadAllText(ServerFilename, Encoding.UTF8);
-                return JsonSerializer.Deserialize<ServerProfile[]>(text, opts) ?? Array.Empty<ServerProfile>();
+                return JsonSerializer.Deserialize<RouteProfile[]>(text, opts) ?? Array.Empty<RouteProfile>();
             }
             catch (FileNotFoundException)
             {
-                return Array.Empty<ServerProfile>();
+                return Array.Empty<RouteProfile>();
             }
         }
 
-        return Query<ServerProfile>("SELECT STATEMENT TBD");
+        return Query<RouteProfile>("SELECT STATEMENT TBD");
     }
 
     /// <summary>
     /// Queries all client routes. The result is a new instance on each call.
     /// </summary>
-    public IEnumerable<IReadOnlyClientProfile> QueryAllClientRoutes()
+    public IEnumerable<IReadOnlyRouteProfile> QueryAllClientRoutes()
     {
         if (ClientFilename != null)
         {
@@ -92,15 +92,15 @@ public class RoutingDatabase : DatabaseCore
             try
             {
                 var text = File.ReadAllText(ClientFilename, Encoding.UTF8);
-                return JsonSerializer.Deserialize<ClientProfile[]>(text, opts) ?? Array.Empty<ClientProfile>();
+                return JsonSerializer.Deserialize<RouteProfile[]>(text, opts) ?? Array.Empty<RouteProfile>();
             }
             catch (FileNotFoundException)
             {
-                return Array.Empty<ClientProfile>();
+                return Array.Empty<RouteProfile>();
             }
         }
 
-        return Query<ClientProfile>("SELECT STATEMENT TBD");
+        return Query<RouteProfile>("SELECT STATEMENT TBD");
     }
 
 }

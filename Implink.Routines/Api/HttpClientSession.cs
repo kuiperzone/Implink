@@ -21,9 +21,9 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
-using KuiperZone.Implink.Routines.RoutingProfile;
 
 namespace KuiperZone.Implink.Routines.Api;
+
 /// <summary>
 /// Abstract base class which extends <see cref="ClientSession"/> to implement an internal
 /// <see cref="HttpClient"/> instance. It does not, however, implement the API conversion.
@@ -37,8 +37,9 @@ public abstract class HttpClientSession : ClientSession, IClientApi
     /// <summary>
     /// Constructor. If factory is null, the instance will have no signer.
     /// </summary>
-    public HttpClientSession(IReadOnlyClientProfile profile, ISignerFactory? factory, string? contentType = null)
-        : base(profile)
+    public HttpClientSession(IReadOnlyRouteProfile profile, ISignerFactory? factory, bool remoteTerminated,
+        string? contentType = null)
+        : base(profile, remoteTerminated)
     {
         // https://stackoverflow.com/questions/23438416/why-is-httpclient-baseaddress-not-working
         // You must place a slash at the end of the BaseAddress, and you must not place a slash at the beginning of your relative URI.

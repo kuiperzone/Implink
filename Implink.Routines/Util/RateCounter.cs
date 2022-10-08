@@ -18,42 +18,66 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines.RoutingProfile;
+namespace KuiperZone.Implink.Routines.Util;
 
 /// <summary>
-/// A serializable class which implments <see cref="IReadOnlyServerProfile"/> and provides setters.
+/// Simple request rate counter. Thread safe.
 /// </summary>
-public class ServerProfile : RouteProfile, IReadOnlyServerProfile
+public class RateCounter
 {
-    /// <summary>
-    /// Constructor.
-    /// </summary>
-    public ServerProfile()
-    {
-        ThrottleRate = 10;
-    }
+    private readonly object _syncObj = new();
+    private DateTime _epoch = DateTime.UtcNow;
+    private long _counter;
 
     /// <summary>
-    /// Overrides.
+    /// Resets rate.
     /// </summary>
-    public override void Assert()
+    public void Reset()
     {
-        // Placeholder for additional fields
-        base.Assert();
-    }
-
-    /// <summary>
-    /// Overrides.
-    /// </summary>
-    public override bool Equals(IReadOnlyRouteProfile? obj)
-    {
-        if (obj != null && base.Equals(obj))
+        lock (_syncObj)
         {
-            // Placeholder for additional fields
-            return true;
+            _epoch = DateTime.UtcNow;
+            _counter = 0;
         }
-
-        return false;
     }
 
+    /// <summary>
+    /// Increments.
+    /// </summary>
+    public void Increment()
+    {
+        lock (_syncObj)
+        {
+            _counter += 1;
+        }
+    }
+
+    /// <summary>
+    /// Gets requests per minute, as signaled by a call to <see cref="Increment"/>.
+    /// </summary>
+    public double GetRate()
+    {
+        lock (_syncObj)
+        {
+            var now = DateTime.UtcNow;
+            var sec = (now - _epoch).TotalSeconds;
+
+            if (sec < 0 || sec >= 60)
+            {
+                _epoch = now;
+                _counter = 0;
+            }
+
+            return _counter;
+        }
+    }
+
+    /// <summary>
+    /// Returns true if <see cref="GetRate"/> is above equal to maxRate.
+    /// Always returns false if maxRate is 0 or less.
+    /// </summary>
+    public bool IsThrottled(long maxRate)
+    {
+        return maxRate > 0 && GetRate() >= maxRate;
+    }
 }

@@ -18,17 +18,27 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Routines.RoutingProfile;
+namespace KuiperZone.Implink.Routines.Api;
 
 /// <summary>
 /// A serializable class which implements <see cref="IReadOnlyRouteProfile"/> and provides setters.
 /// </summary>
-public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IEquatable<IReadOnlyRouteProfile>
+public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, IEquatable<IReadOnlyRouteProfile>
 {
     /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.NameId"/> and provides a setter.
     /// </summary>
     public string NameId { get; set; } = "";
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyRouteProfile.Categories"/> and provides a setter.
+    /// </summary>
+    public string Categories { get; set; } = "";
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyRouteProfile.Api"/> and provides a setter.
+    /// </summary>
+    public string? ApiKind { get; set; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.BaseAddress"/> and provides a setter.
@@ -39,6 +49,11 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IEquatable<
     /// Implements <see cref="IReadOnlyRouteProfile.Authentication"/> and provides a setter.
     /// </summary>
     public string Authentication { get; set; } = "";
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyRouteProfile.UserAgent"/> and provides a setter.
+    /// </summary>
+    public string? UserAgent { get; set; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.ThrottleRate"/> and provides a setter.
@@ -56,33 +71,42 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IEquatable<
     public string GetKey()
     {
         // Want this as a method, rather than property.
-        return NameId + "+" + BaseAddress;
+        return NameId.Trim().ToLowerInvariant() + "+" + BaseAddress.Trim().ToLowerInvariant();
     }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.Assert"/>.
+    /// Implements <see cref="JsonSerializable.CheckValidity(out string)"/>.
     /// </summary>
-    public virtual void Assert()
+    public override bool CheckValidity(out string message)
     {
+        const string ClassName = nameof(RouteProfile);
+
         if (string.IsNullOrWhiteSpace(NameId))
         {
-            throw new InvalidOperationException($"{NameId} undefined");
+            message = $"{ClassName}.{nameof(RouteProfile.NameId)} is mandatory";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(Authentication))
+        {
+            message = $"{nameof(RouteProfile.Authentication)} undefined for {ClassName}.{nameof(RouteProfile.NameId)}={NameId}";
+            return false;
         }
 
         if (!BaseAddress.StartsWith("https://") && !BaseAddress.StartsWith("http://"))
         {
-            throw new InvalidOperationException($"{BaseAddress} must start with https:// or http://");
-        }
-
-        if (BaseAddress.Length <= "https://".Length)
-        {
-            throw new InvalidOperationException($"{BaseAddress} undefined");
+            message = $"{nameof(RouteProfile.BaseAddress)} must start 'https://' or 'http://' for {ClassName}.{nameof(RouteProfile.NameId)}={NameId}";
+            return false;
         }
 
         if (Timeout < 1)
         {
-            throw new InvalidOperationException($"{Timeout} is zero or less");
+            message = $"{nameof(RouteProfile.Timeout)} must be positive for {ClassName}.{nameof(RouteProfile.NameId)} {NameId}";
+            return false;
         }
+
+        message = "";
+        return true;
     }
 
     /// <summary>
@@ -95,11 +119,17 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IEquatable<
             return true;
         }
 
-        if (obj != null && NameId == obj.NameId && BaseAddress == obj.BaseAddress &&
-            Authentication == obj.Authentication && Timeout == obj.Timeout &&
+        if (obj != null &&
+            NameId == obj.NameId &&
+            Categories == obj.Categories &&
+            ApiKind == obj.ApiKind &&
+            BaseAddress == obj.BaseAddress &&
+            Authentication == obj.Authentication &&
+            UserAgent == obj.UserAgent &&
+            ThrottleRate == obj.ThrottleRate &&
             Timeout == obj.Timeout)
         {
-            return GetType() == obj.GetType();
+            return true;
         }
 
         return false;
@@ -118,6 +148,6 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IEquatable<
     /// </summary>
     public sealed override int GetHashCode()
     {
-        return HashCode.Combine(NameId, BaseAddress);
+        return HashCode.Combine(NameId.Trim().ToLowerInvariant(), BaseAddress.Trim().ToLowerInvariant());
     }
 }
