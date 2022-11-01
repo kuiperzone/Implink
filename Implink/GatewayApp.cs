@@ -21,10 +21,9 @@
 using System.Net.Mime;
 using System.Text;
 using KuiperZone.Implink.Api;
-using KuiperZone.Implink.Database;
 using KuiperZone.Utility.Yaal;
 
-namespace KuiperZone.Implink.Gateway;
+namespace KuiperZone.Implink;
 
 /// <summary>
 /// Manages a collection of client sessions.
@@ -37,7 +36,7 @@ public class GatewayApp : IDisposable
     private volatile bool v_disposed;
 
     /// <summary>
-    /// Constructor. Intervalue is Does not dispose of app or database.
+    /// Constructor. Does not dispose of app or database.
     /// </summary>
     public GatewayApp(WebApplication app, RoutingDatabase database, bool remoteTerminated)
     {
@@ -50,29 +49,6 @@ public class GatewayApp : IDisposable
 
         ResponseTimeout = TimeSpan.FromMilliseconds(conf.GetValue<int>(nameof(ResponseTimeout), 15000));
         Logger.Global.Debug($"{nameof(ResponseTimeout)}={ResponseTimeout}");
-
-        if (IsRemoteTerminated)
-        {
-            Url = conf["RemoteTerminatedUrl"];
-
-            if (string.IsNullOrEmpty(Url))
-            {
-                throw new ArgumentException("RemoteTerminatedUrl undefined in appsettings");
-            }
-        }
-        else
-        {
-            Url = conf["RemoteOriginatedUrl"];
-
-            if (string.IsNullOrEmpty(Url))
-            {
-                throw new ArgumentException("RemoteOriginatedUrl undefined in appsettings");
-            }
-        }
-
-
-
-
 
         _database = database;
         _manager = new(_database.QueryAllRoutes(IsRemoteTerminated), IsRemoteTerminated);
@@ -96,11 +72,6 @@ public class GatewayApp : IDisposable
     public bool IsRemoteTerminated { get; }
 
     /// <summary>
-    ///
-    /// </summary>
-    public string Url { get; }
-
-    /// <summary>
     /// Gets the routing information refresh interval.
     /// </summary>
     public TimeSpan RefreshInterval { get; }
@@ -118,21 +89,37 @@ public class GatewayApp : IDisposable
         Logger.Global.Debug("Disposal");
         v_disposed = true;
         _thread?.Interrupt();
+
         _manager.Dispose();
     }
 
-    private Task SubmitPostHandler(HttpContext ctx)
+    private async Task<Task> SubmitPostHandler(HttpContext ctx)
     {
-        Logger.Global.Write(SeverityLevel.Notice, $"{nameof(SubmitPost)} received on TBD");
+        try
+        {
+            Logger.Global.Write(SeverityLevel.Notice, $"{nameof(SubmitPost)} received on TBD");
+            using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8, false);
 
-        var body = new StreamReader(ctx.Request.Body, Encoding.UTF8, false).ReadToEnd();
-        Logger.Global.Write(SeverityLevel.Info, body);
+            var body = await reader.ReadToEndAsync();
+            Logger.Global.Write(SeverityLevel.Info, body);
 
-        var submit = JsonSerializable.Deserialize<SubmitPost>(body);
-        var code = _manager.SubmitPostRequest(submit, out SubmitResponse response);
-        Logger.Global.Debug($"Response code: {code}");
+            var submit = JsonSerializable.Deserialize<SubmitPost>(body);
+            var code = _manager.SubmitPostRequest(submit, out SubmitResponse response);
 
-        return WriteResponseAsync(ctx.Response, code, response.ToString());
+            Logger.Global.Write(SeverityLevel.Notice, $"Response code: {code}");
+
+            if (!string.IsNullOrEmpty(response.ErrorReason))
+            {
+                Logger.Global.Write(SeverityLevel.Notice, response.ErrorReason);
+            }
+
+            return WriteResponseAsync(ctx.Response, code, response.ToString());
+        }
+        catch (Exception e)
+        {
+            Logger.Global.Write(e);
+            throw;
+        }
     }
 
     private Task WriteResponseAsync(HttpResponse resp, int code, string? body)
@@ -164,6 +151,7 @@ public class GatewayApp : IDisposable
             }
             catch (Exception e)
             {
+                Logger.Global.Write(SeverityLevel.Error, "Failed to read from database");
                 Logger.Global.Write(e);
             }
         }

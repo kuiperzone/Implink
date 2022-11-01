@@ -21,30 +21,21 @@
 using System.Net;
 using KuiperZone.Implink.Api;
 using KuiperZone.Implink.Api.Imp;
-using KuiperZone.Implink.Util;
 
-namespace KuiperZone.Implink.Gateway;
+namespace KuiperZone.Implink;
 
 /// <summary>
-/// A wrapper class for instances of <see cref="ClientSession"/>. This wrapper implements
-/// <see cref="IClientApi"/>, calling on the internal session to handle the call. It's purpose is:
-/// a. to allow dynamic contruction based on <see cref="IReadOnlyRouteProfile.ApiKind"/>, and b.
-/// to add throttling to request calls.
+/// A container class for an instance of <see cref="ClientSession"/>, which also provides rate limiting.
 /// </summary>
-public class DynamicClient : IClientApi, IDisposable
+public class SessionContainer : IDisposable
 {
-    private readonly ClientSession _session;
-    private readonly RateCounter _counter = new();
-
     /// <summary>
     /// Constructor. This instance will own the session and dispose of it.
     /// </summary>
-    public DynamicClient(ClientSession session)
+    public SessionContainer(ClientSession session)
     {
-        _session = session;
-        Profile = session.Profile;
-        IsRemoteTerminated = session.IsRemoteTerminated;
-        ServerDecoder = IsRemoteTerminated ? new() : new(new ImpKeys(session));
+        Client = session;
+        Counter = new(session.Profile.ThrottleRate);
     }
 
     /// <summary>
@@ -52,57 +43,44 @@ public class DynamicClient : IClientApi, IDisposable
     /// <see cref="IReadOnlyRouteProfile.ApiKind"/>. Where remoteTerminated is false, the API kind is
     /// ignored as the session is always an instance of <see cref="ImpClientSession"/>.
     /// </summary>
-    public DynamicClient(IReadOnlyRouteProfile profile, bool remoteTerminated)
+    public SessionContainer(IReadOnlyRouteProfile profile, bool remoteTerminated)
         : this(remoteTerminated ? ClientFactory.Create(profile) : new ImpClientSession(profile, false))
     {
+
     }
 
     /// <summary>
-    /// Implements <see cref="IClientApi.IsRemoteTerminated"/>.
+    /// Gets a rate counter.
     /// </summary>
-    public bool IsRemoteTerminated { get; }
+    public RateCounter Counter { get; }
 
     /// <summary>
-    /// Gets the profile.
+    /// Gets the client.
     /// </summary>
-    public IReadOnlyRouteProfile Profile { get; }
+    public ClientSession Client { get; }
 
     /// <summary>
-    /// Gets the associated instance of <see cref="ImpServerDecoder"/>.
-    /// </summary>
-    public ImpServerDecoder? ServerDecoder { get; }
-
-    /// <summary>
-    /// Implements <see cref="IClientApi.SubmitPostRequest"/>.
+    /// Calls <see cref="IClientApi.SubmitPostRequest"/> and truncates message if too long.
     /// </summary>
     public int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
     {
-        if (_counter.IsThrottled(Profile.ThrottleRate))
+        var prof = Client.Profile;
+
+        if (Counter.IsThrottled())
         {
             response = new();
             response.ErrorReason = "Request throttled";
             return (int)HttpStatusCode.TooManyRequests;
         }
 
-        try
+        if (prof.MaxText > 3 && submit.Text.Length > prof.MaxText - 3)
         {
-            if (Profile.MaxText > 3 && submit.Text.Length > Profile.MaxText - 3)
-            {
-                // Make a clone
-                submit = new SubmitPost(submit);
-                submit.Text = submit.Text.Substring(0, Profile.MaxText - 3) + "...";
-            }
+            // Make a clone
+            submit = new SubmitPost(submit);
+            submit.Text = submit.Text.Substring(0, prof.MaxText - 3) + "...";
+        }
 
-            var rslt = _session.SubmitPostRequest(submit, out response);
-            _counter.Increment();
-            return rslt;
-        }
-        catch (Exception e)
-        {
-            response = new();
-            response.ErrorReason = e.InnerException?.Message ?? e.Message;
-            return (int)HttpStatusCode.InternalServerError;
-        }
+        return Client.SubmitPostRequest(submit, out response);
     }
 
     /// <summary>
@@ -110,6 +88,6 @@ public class DynamicClient : IClientApi, IDisposable
     /// </summary>
     public void Dispose()
     {
-        _session.Dispose();
+        Client.Dispose();
     }
 }

@@ -11,14 +11,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.0.123" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="6.0.0" />
-    <PackageReference Include="System.Data.SqlClient" Version="4.8.3" />
-    <PackageReference Include="Npgsql" Version="6.0.7" />
-    <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="5.2.9" />
-    <PackageReference Include="CoreTweet" Version="1.0.0.483" />
     <PackageReference Include="KuiperZone.Utility.Yaap" Version="1.0.0" />
-    <PackageReference Include="KuiperZone.Utility.Yaal" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Implink.Api\Implink.Api.csproj" />
   </ItemGroup>
 
 </Project>

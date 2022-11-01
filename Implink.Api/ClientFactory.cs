@@ -46,14 +46,19 @@ public static class ClientFactory
     /// <summary>
     /// Returns true if kind is a valid api name.
     /// </summary>
-    public static bool IsVal3idApi(string? kind)
+    public static bool IsValidApi(string? kind)
     {
-        switch (kind?.ToLowerInvariant())
+        if (ImpV1.Equals(kind, StringComparison.OrdinalIgnoreCase))
         {
-            case ImpV1:
-            case Twitter: return true;
-            default: return false;
+            return true;
         }
+
+        if (Twitter.Equals(kind, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -62,12 +67,17 @@ public static class ClientFactory
     /// <exception cref="ArgumentException">Invalid ApiKind</exception>
     public static ClientSession Create(IReadOnlyRouteProfile profile)
     {
-        switch (profile.ApiKind?.ToLowerInvariant())
+        if (ImpV1.Equals(profile.ApiKind, StringComparison.OrdinalIgnoreCase))
         {
-            case ImpV1: return new ImpClientSession(profile, true);
-            case Twitter: return new TwitterClientSession(profile);
-            default: throw new ArgumentException(
-                $"Invalid or unknown {nameof(IReadOnlyRouteProfile.ApiKind)} {profile.ApiKind} for route {profile.NameId}");
+            return new ImpClientSession(profile, true);
         }
+
+        if (Twitter.Equals(profile.ApiKind, StringComparison.OrdinalIgnoreCase))
+        {
+            return new TwitterClientSession(profile);
+        }
+
+        throw new ArgumentException(
+            $"Invalid or unknown {nameof(IReadOnlyRouteProfile.ApiKind)} {profile.ApiKind} for route {profile.NameId}");
     }
 }

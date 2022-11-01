@@ -18,15 +18,16 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using KuiperZone.Implink.Database;
-using KuiperZone.Implink.Gateway;
 using KuiperZone.Utility.Yaal;
+using KuiperZone.Utility.Yaal.Sinks;
 using KuiperZone.Utility.Yaap;
 
 namespace KuiperZone.Implink;
 
 class Program
 {
+    private static bool RemoteTerminated;
+
     // REFERENCE
     // ASP WebApp-application:
     // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0
@@ -43,23 +44,62 @@ class Program
     /// </summary>
     public static int Main(string[] args)
     {
-        var parse = new ArgumentParser(args);
+        var parser = new ArgumentParser(args);
 
-        if (HandleArgsContinue(parse))
+        if (HandleArgsContinue(parser))
         {
-            var builder = WebApplication.CreateBuilder(args);
-            builder.Host.UseSystemd();
+            Thread.CurrentThread.Name = "MAINTHREAD";
+#if DEBUG
+            var fopts = new FileSinkOptions();
+            fopts.RemoveLogsOnStart = true;
+            Logger.Global.AddSink(new FileSink(fopts));
+            Logger.Global.AddSink(new ConsoleSink());
+#endif
+            Logger.Global.Write(SeverityLevel.Notice, AppInfo.AppName + " starting");
+            Logger.Global.Write(SeverityLevel.Notice, $"args={parser}");
 
-            ConfigurationManager conf = builder.Configuration;
-            using var database = new RoutingDatabase(conf["DatabaseKind"], conf["DatabaseConnection"]);
+            try
+            {
+                var builder = WebApplication.CreateBuilder(args);
 
-            using var app = builder.Build();
-            using var rtGateway = new GatewayApp(app, database, true);
+                // Not using
+                builder.Logging.ClearProviders();
 
-            app.Run();
+                builder.Host.UseSystemd();
+                var conf = builder.Configuration;
+
+                var url = GetUrl(conf);
+                Logger.Global.Write(SeverityLevel.Notice, $"RemoteTerminated={RemoteTerminated}");
+                Logger.Global.Write(SeverityLevel.Notice, $"Url={url}");
+
+                using var database = new RoutingDatabase(conf["DatabaseKind"], conf["DatabaseConnection"]);
+                using var app = builder.Build();
+                using var gway = new GatewayApp(app, database, RemoteTerminated);
+
+                app.Run(url);
+            }
+            catch (Exception e)
+            {
+                Logger.Global.Write(e);
+                return 1;
+            }
         }
 
         return 0;
+    }
+
+    private static string GetUrl(IConfiguration conf)
+    {
+        var key = RemoteTerminated ? "RemoteTerminatedUrl" : "RemoteOriginatedUrl";
+
+        var url = conf[key];
+
+        if (string.IsNullOrEmpty(url))
+        {
+            throw new ArgumentException($"{key} undefined in appsettings");
+        }
+
+        return url;
     }
 
     private static bool HandleArgsContinue(ArgumentParser parser)
@@ -69,6 +109,7 @@ class Program
             Console.WriteLine("Usage:");
             Console.WriteLine("    -h, --help: Help information");
             Console.WriteLine("    -v, --version: Version information");
+            Console.WriteLine("    -o, --remoteOrig: Remote originated");
             return false;
         }
 
@@ -77,6 +118,9 @@ class Program
             Console.WriteLine(AppInfo.Version);
             return false;
         }
+
+        bool remoteOrig = parser.GetOrDefault("o", false) || parser.GetOrDefault("remoteOrig", false);
+        RemoteTerminated = !remoteOrig;
 
         return true;
     }

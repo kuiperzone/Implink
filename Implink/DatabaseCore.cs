@@ -23,7 +23,7 @@ using System.Data.SqlClient;
 using Dapper;
 using Npgsql;
 
-namespace KuiperZone.Implink.Database;
+namespace KuiperZone.Implink;
 
 /// <summary>
 /// Base class for database access which internally employs Dapper and supports MySql and PostgreSql.
@@ -46,11 +46,6 @@ public class DatabaseCore : IDisposable
     /// </summary>
     public const string FileKind = "file";
 
-    /// <summary>
-    /// Test only.
-    /// </summary>
-    public const string TestKind = "test";
-
     private readonly IDbConnection? _sqlConnection;
 
     /// <summary>
@@ -63,40 +58,37 @@ public class DatabaseCore : IDisposable
         Kind = kind.Trim().ToLowerInvariant();
         Connection = connection.Trim();
 
-        if (Kind != TestKind)
+        if (string.IsNullOrEmpty(Connection))
         {
-            if (string.IsNullOrEmpty(Connection))
-            {
-                throw new ArgumentException("Database connection string undefined");
-            }
+            throw new ArgumentException("Database connection string undefined");
+        }
 
-            switch (Kind)
-            {
-                case MySqlKind:
-                    _sqlConnection = new SqlConnection(connection);
-                    break;
+        switch (Kind)
+        {
+            case MySqlKind:
+                _sqlConnection = new SqlConnection(connection);
+                break;
 
-                case PostgresKind:
-                    _sqlConnection = new NpgsqlConnection(connection);
-                    break;
+            case PostgresKind:
+                _sqlConnection = new NpgsqlConnection(connection);
+                break;
 
-                case FileKind:
-                    var info = new FileInfo(Connection);
+            case FileKind:
+                var info = new FileInfo(Connection);
 
-                    if (!Directory.Exists(info.Directory?.FullName))
-                    {
-                        throw new DirectoryNotFoundException("File directory not exist: " + info.Directory?.FullName);
-                    }
-                    break;
+                if (!Directory.Exists(info.Directory?.FullName))
+                {
+                    throw new DirectoryNotFoundException("File directory not exist: " + info.Directory?.FullName);
+                }
+                break;
 
-                default:
-                    if (string.IsNullOrWhiteSpace(Kind))
-                    {
-                        throw new ArgumentException("Database kind undefined");
-                    }
+            default:
+                if (string.IsNullOrWhiteSpace(Kind))
+                {
+                    throw new ArgumentException("Database kind undefined");
+                }
 
-                    throw new ArgumentException("Invalid database kind: " + kind);
-            }
+                throw new ArgumentException("Invalid database kind: " + kind);
         }
     }
 

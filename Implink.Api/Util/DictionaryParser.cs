@@ -18,7 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Util;
+namespace KuiperZone.Implink.Api.Util;
 
 /// <summary>
 /// Static utility.

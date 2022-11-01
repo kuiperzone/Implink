@@ -18,7 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using KuiperZone.Implink.Util;
+using KuiperZone.Implink.Api.Util;
 
 namespace KuiperZone.Implink.Api;
 

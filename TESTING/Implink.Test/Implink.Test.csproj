@@ -20,4 +20,9 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Implink\Implink.csproj" />
+    <ProjectReference Include="..\Implink.Stub\Implink.Stub.csproj" />
+  </ItemGroup>
+
 </Project>

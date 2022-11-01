@@ -19,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 using System.Text;
+using KuiperZone.Utility.Yaal;
 
 namespace KuiperZone.Implink.Api.Imp;
 
@@ -40,12 +41,16 @@ public sealed class ImpClientSession : HttpClientSession
     /// </summary>
     public override int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
     {
+        Logger.Global.Debug(submit.ToString());
         var msg = new HttpRequestMessage(HttpMethod.Post, nameof(SubmitPost));
         msg.Content = new StringContent(submit.ToString(), Encoding.UTF8, "application/json");
 
+        Logger.Global.Debug("Sending");
         var tuple = IsRemoteTerminated ? SignAndSend(msg) : Send(msg);
-        response = JsonSerializable.Deserialize<SubmitResponse>(tuple.Body);
-        response.ErrorReason = tuple.ErrorReason;
-        return tuple.StatusCode;
+
+        Logger.Global.Debug(tuple.Item2);
+        response = JsonSerializable.Deserialize<SubmitResponse>(tuple.Item2);
+        response.ErrorReason ??= tuple.Item1.ToString();
+        return (int)tuple.Item1;
     }
 }

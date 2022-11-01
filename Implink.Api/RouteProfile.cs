@@ -36,7 +36,7 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, 
     public string Categories { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.Api"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyRouteProfile.ApiKind"/> and provides a setter.
     /// </summary>
     public string? ApiKind { get; set; }
 
@@ -89,12 +89,6 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, 
         if (string.IsNullOrWhiteSpace(NameId))
         {
             message = $"{ClassName}.{nameof(RouteProfile.NameId)} is mandatory";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(Authentication))
-        {
-            message = $"{nameof(RouteProfile.Authentication)} undefined for {ClassName}.{nameof(RouteProfile.NameId)}={NameId}";
             return false;
         }
 

@@ -21,17 +21,15 @@
 using System.Text;
 using System.Text.Json;
 using KuiperZone.Implink.Api;
+using KuiperZone.Utility.Yaal;
 
-namespace KuiperZone.Implink.Database;
+namespace KuiperZone.Implink;
 
 /// <summary>
 /// Extends <see cref="DatabaseCore"/> to provide route data.
 /// </summary>
 public class RoutingDatabase : DatabaseCore
 {
-    private readonly IEnumerable<IReadOnlyRouteProfile>? _remotes;
-    private readonly IEnumerable<IReadOnlyRouteProfile>? _locals;
-
     /// <summary>
     /// Constructor with parameters.
     /// </summary>
@@ -40,37 +38,27 @@ public class RoutingDatabase : DatabaseCore
     {
         if (Kind == FileKind)
         {
-            LocalFilename = Path.Combine(Connection, "LocalRoutes.json");
-            RemoteFilename = Path.Combine(Connection, "RemoteRoutes.json");
+            RTFilename = Path.Combine(Connection, "RTRoutes.json");
+            ROFilename = Path.Combine(Connection, "RORoutes.json");
         }
     }
 
     /// <summary>
-    /// For use in testing only.
+    /// Gets the outbound (remote terminated) filename. For test only.
     /// </summary>
-    public RoutingDatabase(IEnumerable<IReadOnlyRouteProfile> remotes, IEnumerable<IReadOnlyRouteProfile>? locals = null)
-        : base(TestKind, "")
-    {
-        _remotes = remotes;
-        _locals = locals ?? Array.Empty<IReadOnlyRouteProfile>();
-    }
+    public string? RTFilename { get; }
 
     /// <summary>
     /// Gets the inbound (remote originated) filename. For test only.
     /// </summary>
-    public string? LocalFilename { get; }
-
-    /// <summary>
-    /// Gets the outbound (remote terminated) filename. For test only.
-    /// </summary>
-    public string? RemoteFilename { get; }
+    public string? ROFilename { get; }
 
     /// <summary>
     /// Queries all routes, either remote terminated or remote originated. The result is a new instance on each call.
     /// </summary>
     public IEnumerable<IReadOnlyRouteProfile> QueryAllRoutes(bool remoteTerminated)
     {
-        var fname = remoteTerminated ? RemoteFilename : LocalFilename;
+        var fname = remoteTerminated ? RTFilename : ROFilename;
 
         if (fname != null)
         {
@@ -79,23 +67,15 @@ public class RoutingDatabase : DatabaseCore
 
             try
             {
+                Logger.Global.Debug("Filename: " + fname);
                 var text = File.ReadAllText(fname, Encoding.UTF8);
+                Logger.Global.Debug("Text: " + text);
                 return JsonSerializer.Deserialize<RouteProfile[]>(text, opts) ?? Array.Empty<RouteProfile>();
             }
             catch (FileNotFoundException)
             {
                 return Array.Empty<RouteProfile>();
             }
-        }
-
-        if (_remotes != null && remoteTerminated)
-        {
-            return _remotes;
-        }
-
-        if (_locals != null && !remoteTerminated)
-        {
-            return _locals;
         }
 
         return Query<RouteProfile>("SELECT STATEMENT TBD");

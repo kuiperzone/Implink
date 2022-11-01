@@ -22,7 +22,7 @@ using System.Net;
 using KuiperZone.Implink.Api;
 using KuiperZone.Utility.Yaal;
 
-namespace KuiperZone.Implink.Gateway;
+namespace KuiperZone.Implink;
 
 /// <summary>
 /// Manages a collection of client sessions.
@@ -30,8 +30,8 @@ namespace KuiperZone.Implink.Gateway;
 public class SessionManager : IClientApi, IDisposable
 {
     private readonly object _syncObj = new();
-    private readonly Dictionary<string, DynamicClient> _keyed = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, List<DynamicClient>> _named = new(StringComparer.InvariantCultureIgnoreCase);
+    private readonly Dictionary<string, SessionContainer> _keyed = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<SessionContainer>> _named = new(StringComparer.InvariantCultureIgnoreCase);
 
     /// <summary>
     /// Default constructor.
@@ -88,7 +88,7 @@ public class SessionManager : IClientApi, IDisposable
     /// <summary>
     /// Gets the clients with matching name.
     /// </summary>
-    public IClientApi[] Get(string? nameId)
+    public SessionContainer[] Get(string? nameId)
     {
         lock (_syncObj)
         {
@@ -124,7 +124,6 @@ public class SessionManager : IClientApi, IDisposable
     /// </summary>
     public bool Reload(IEnumerable<IReadOnlyRouteProfile> profiles)
     {
-        string? info = null;
         var newDictionary = new Dictionary<string, IReadOnlyRouteProfile>(StringComparer.InvariantCultureIgnoreCase);
 
         foreach (var item in profiles)
@@ -133,12 +132,12 @@ public class SessionManager : IClientApi, IDisposable
             {
                 if (!newDictionary.TryAdd(item.GetKey(), item))
                 {
-                    info ??= $"{nameof(RouteProfile.NameId)} and {nameof(RouteProfile.BaseAddress)} combination not unique for {item.NameId}";
+                    Logger.Global.Write(SeverityLevel.Warning, $"{nameof(RouteProfile.NameId)} and {nameof(RouteProfile.BaseAddress)} combination not unique for {item.NameId}");
                 }
             }
             else
             {
-                info ??= $"{nameof(RouteProfile)}.{nameof(RouteProfile.NameId)} is mandatory";
+                Logger.Global.Write(SeverityLevel.Warning, $"{nameof(RouteProfile)}.{nameof(RouteProfile.NameId)} is mandatory (ignored)");
             }
         }
 
@@ -149,13 +148,14 @@ public class SessionManager : IClientApi, IDisposable
             // Remove items no longer in given profiles
             foreach (var oldContainer in _keyed.Values.ToArray())
             {
-                var key = oldContainer.Profile.GetKey();
+                var oldProfile = oldContainer.Client.Profile;
+                var key = oldProfile.GetKey();
 
-                if (!newDictionary.TryGetValue(key, out IReadOnlyRouteProfile? newProfile) || !newProfile.Equals(oldContainer.Profile))
+                if (!newDictionary.TryGetValue(key, out IReadOnlyRouteProfile? newProfile) || !newProfile.Equals(oldProfile))
                 {
                     oldContainer.Dispose();
                     _keyed.Remove(key);
-                    _named.Remove(oldContainer.Profile.NameId);
+                    _named.Remove(oldProfile.NameId);
                     modified = true;
                 }
             }
@@ -169,8 +169,7 @@ public class SessionManager : IClientApi, IDisposable
                 }
                 catch (Exception e)
                 {
-                    // Log only
-                    info = e.Message;
+                    Logger.Global.Write(e);
                 }
             }
         }
@@ -199,10 +198,36 @@ public class SessionManager : IClientApi, IDisposable
 
             if (clients.Length != 0)
             {
+                bool success = false;
+                bool throttled = false;
+
                 foreach (var item in clients)
                 {
-                    var tuple = Tuple.Create(item, submit);
-                    ThreadPool.QueueUserWorkItem(SubmitThread, tuple);
+                    Logger.Global.Debug(item.Client.Profile.BaseAddress);
+
+                    if (!item.Counter.IsThrottled(true))
+                    {
+                        Logger.Global.Debug("Queue for worker thread");
+                        success = true;
+                        var tuple = Tuple.Create(item.Client, submit);
+                        ThreadPool.QueueUserWorkItem(SubmitThread, tuple);
+                    }
+                    else
+                    {
+                        throttled = true;
+                        Logger.Global.Debug("Throttled");
+                    }
+                }
+
+                if (throttled)
+                {
+                    if (!success)
+                    {
+                        response.ErrorReason = "Request throttled";
+                        return (int)HttpStatusCode.TooManyRequests;
+                    }
+
+                    response.ErrorReason = "Warning: Some end-points were throttled";
                 }
 
                 return (int)HttpStatusCode.OK;
@@ -224,7 +249,7 @@ public class SessionManager : IClientApi, IDisposable
     public void Dispose()
     {
         GC.SuppressFinalize(this);
-        IEnumerable<DynamicClient> list;
+        IEnumerable<SessionContainer> list;
 
         lock (_syncObj)
         {
@@ -242,8 +267,24 @@ public class SessionManager : IClientApi, IDisposable
     {
         try
         {
-            var tuple = (Tuple<DynamicClient, SubmitPost>)(obj ?? throw new ArgumentNullException());
-            var code = tuple.Item1.SubmitPostRequest(tuple.Item2, out SubmitResponse resp);
+            var tuple = (Tuple<ClientSession, SubmitPost>)(obj ?? throw new ArgumentNullException());
+
+            var client = tuple.Item1;
+            var prof = client.Profile;
+            Logger.Global.Write($"Sending: {prof.ApiKind}, {prof.BaseAddress}");
+
+            var code = client.SubmitPostRequest(tuple.Item2, out SubmitResponse resp);
+
+            Logger.Global.Write("Response code: " + code);
+            Logger.Global.Write(resp.ToString());
+
+            if (code != (int)HttpStatusCode.OK)
+            {
+                var msg = $"Failed to submit request on internal thread: {prof.ApiKind}, {prof.BaseAddress}. " +
+                    $"Status code {code}, {resp.ErrorReason}";
+
+                Logger.Global.Write(SeverityLevel.Notice, msg);
+            }
         }
         catch (Exception e)
         {
@@ -262,30 +303,42 @@ public class SessionManager : IClientApi, IDisposable
         return !string.IsNullOrEmpty(nameId) && _named.ContainsKey(nameId);
     }
 
-    private DynamicClient[] GetNoSync(string? nameId)
+    private SessionContainer[] GetNoSync(string? nameId)
     {
-        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<DynamicClient>? list))
+        Logger.Global.Debug("Find: " + nameId);
+
+        foreach (var item in _named.Keys)
+        {
+            Logger.Global.Debug("Named: " + item);
+        }
+
+        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<SessionContainer>? list))
         {
             return list.ToArray();
         }
 
-        return Array.Empty<DynamicClient>();
+        return Array.Empty<SessionContainer>();
     }
 
     private bool AddNoSync(IReadOnlyRouteProfile profile)
     {
+        Logger.Global.Debug(profile.GetKey());
+
         if (!_keyed.ContainsKey(profile.GetKey()))
         {
-            var session = new DynamicClient(profile, IsRemoteTerminated);
+            var session = new SessionContainer(profile, IsRemoteTerminated);
 
+            Logger.Global.Debug("Add to keyed");
             _keyed.Add(profile.GetKey(), session);
 
-            if (!_named.TryGetValue(profile.NameId, out List<DynamicClient>? list))
+            if (!_named.TryGetValue(profile.NameId, out List<SessionContainer>? list))
             {
+                Logger.Global.Debug("Add new list for " + profile.NameId);
                 list = new();
                 _named.Add(profile.NameId, list);
             }
 
+            Logger.Global.Debug("Add session to list");
             list.Add(session);
             return true;
         }
@@ -297,14 +350,14 @@ public class SessionManager : IClientApi, IDisposable
     {
         int count = 0;
 
-        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<DynamicClient>? list))
+        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<SessionContainer>? list))
         {
             count += 1;
             _named.Remove(nameId);
 
             foreach (var item in list)
             {
-                _keyed.Remove(item.Profile.GetKey());
+                _keyed.Remove(item.Client.Profile.GetKey());
             }
         }
 

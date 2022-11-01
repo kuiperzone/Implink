@@ -18,7 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Util;
+namespace KuiperZone.Implink;
 
 /// <summary>
 /// Simple request rate counter. Thread safe.
@@ -28,6 +28,19 @@ public class RateCounter
     private readonly object _syncObj = new();
     private DateTime _epoch = DateTime.UtcNow;
     private long _counter;
+
+    /// <summary>
+    /// Constructor with maximum rate in requests per minute.
+    /// </summary>
+    public RateCounter(int maxRate)
+    {
+        MaxRate = maxRate;
+    }
+
+    /// <summary>
+    /// Gets the maximum rate in requests per minute. A zero or negative value disables throttling.
+    /// </summary>
+    public int MaxRate { get; }
 
     /// <summary>
     /// Resets rate.
@@ -59,25 +72,44 @@ public class RateCounter
     {
         lock (_syncObj)
         {
-            var now = DateTime.UtcNow;
-            var sec = (now - _epoch).TotalSeconds;
-
-            if (sec < 0 || sec >= 60)
-            {
-                _epoch = now;
-                _counter = 0;
-            }
-
-            return _counter;
+            return GetRateNoSync();
         }
     }
 
     /// <summary>
-    /// Returns true if <see cref="GetRate"/> is above equal to maxRate.
-    /// Always returns false if maxRate is 0 or less.
+    /// Returns true if <see cref="GetRate"/> is above equal to <see cref="MaxRate"/>.
+    /// Always returns false if <see cref="MaxRate"/> is 0 or less.
     /// </summary>
-    public bool IsThrottled(long maxRate)
+    public bool IsThrottled(bool inc = false)
     {
-        return maxRate > 0 && GetRate() >= maxRate;
+        lock (_syncObj)
+        {
+            if (MaxRate > 0 && GetRateNoSync() >= MaxRate)
+            {
+                return true;
+            }
+
+            if (inc)
+            {
+                _counter += 1;
+            }
+        }
+
+        return false;
     }
+
+    private double GetRateNoSync()
+    {
+        var now = DateTime.UtcNow;
+        var sec = (now - _epoch).TotalSeconds;
+
+        if (sec < 0 || sec >= 60)
+        {
+            _epoch = now;
+            _counter = 0;
+        }
+
+        return _counter;
+    }
+
 }

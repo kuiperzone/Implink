@@ -21,6 +21,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using KuiperZone.Utility.Yaal;
 
 namespace KuiperZone.Implink.Api;
 
@@ -55,7 +56,6 @@ public abstract class HttpClientSession : ClientSession, IClientApi
 
         if (!string.IsNullOrEmpty(contentType))
         {
-            _client.DefaultRequestHeaders.Add("Content-Type", contentType);
             _client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
         }
     }
@@ -89,20 +89,23 @@ public abstract class HttpClientSession : ClientSession, IClientApi
     /// to be called by the implementation of <see cref="ClientSession.SubmitPostRequest"/> with an
     /// instance of HttpRequestMessage. It does not throw.
     /// </summary>
-    protected SendTuple SignAndSend(HttpRequestMessage request)
+    protected Tuple<HttpStatusCode, string> SignAndSend(HttpRequestMessage request)
     {
+        Logger.Global.Debug("Signing...");
         Signer?.Add(request);
         return Send(request);
     }
 
     /// <summary>
-    /// Sends the request and waits <see cref="IReadOnlyClientRoute.Timeout"/> milliseconds for a response.
-    /// The call does not throw, but returns an instance of <see cref="SendTuple"/>. If the implementation of
+    /// Sends the request and waits <see cref="IReadOnlyRouteProfile.Timeout"/> milliseconds for a response.
+    /// The call does not throw, but always returns an instance of <see cref="SendTuple"/>. If the implementation of
     /// <see cref="ClientSession.SubmitPostRequest"/> does not call <see cref="SignAndSend"/>, it should call
     /// this method directly.
     /// </summary>
-    protected SendTuple Send(HttpRequestMessage request)
+    protected Tuple<HttpStatusCode, string> Send(HttpRequestMessage request)
     {
+        Logger.Global.Debug("Sending");
+
         try
         {
             string body = "";
@@ -111,24 +114,33 @@ public abstract class HttpClientSession : ClientSession, IClientApi
 
             if (resp.Content != null)
             {
+                Logger.Global.Debug("Reading response");
                 body = new StreamReader(resp.Content.ReadAsStream(), Encoding.UTF8, false).ReadToEnd();
             }
 
-            return new SendTuple((int)resp.StatusCode, resp.StatusCode.ToString(), body);
+            return Tuple.Create(resp.StatusCode, body);
         }
         catch (HttpRequestException e)
         {
+            Logger.Global.Debug(e);
             var code = e.StatusCode ?? HttpStatusCode.InternalServerError;
-            return new SendTuple((int)code, code.ToString());
+            var resp = new ResponseMessage();
+            resp.ErrorReason = e.InnerException?.Message ?? e.Message;
+            return Tuple.Create(code, resp.ToString());
         }
         catch (TaskCanceledException e) when (e.InnerException is TimeoutException)
         {
-            return new SendTuple((int)HttpStatusCode.RequestTimeout, HttpStatusCode.RequestTimeout.ToString());
+            Logger.Global.Debug(e);
+            var resp = new ResponseMessage();
+            resp.ErrorReason = e.InnerException?.Message ?? e.Message;
+            return Tuple.Create(HttpStatusCode.RequestTimeout, resp.ToString());
         }
         catch (Exception e)
         {
-            var msg = e.InnerException?.Message ?? e.Message;
-            return new SendTuple((int)HttpStatusCode.InternalServerError, msg);
+            Logger.Global.Debug(e);
+            var resp = new ResponseMessage();
+            resp.ErrorReason = e.InnerException?.Message ?? e.Message;
+            return Tuple.Create(HttpStatusCode.InternalServerError, resp.ToString());
         }
         finally
         {
@@ -144,31 +156,4 @@ public abstract class HttpClientSession : ClientSession, IClientApi
         t._client.Dispose();
     }
 
-    /// <summary>
-    /// Result class for <see cref="Send"/>.
-    /// </summary>
-    protected class SendTuple
-    {
-        public SendTuple(int code, string? reason, string body = "")
-        {
-            StatusCode = code;
-            ErrorReason = reason;
-            Body = body;
-        }
-
-        /// <summary>
-        /// Gets the status code.
-        /// </summary>
-        public readonly int StatusCode;
-
-        /// <summary>
-        /// Gets the error message, if any.
-        /// </summary>
-        public readonly string? ErrorReason;
-
-        /// <summary>
-        /// Gets the body text.
-        /// </summary>
-        public readonly string Body;
-    }
 }

@@ -57,10 +57,10 @@ public class ImpClientSigner : IHttpSigner
         }
 
         var sign = _keys.GetSignature(nonce, body, out string timestamp);
-        request.Headers.Add(ImpServerDecoder.PUBLIC_KEY, _keys.Public);
-        request.Headers.Add(ImpServerDecoder.NONCE_KEY, nonce);
-        request.Headers.Add(ImpServerDecoder.SIGN_KEY, sign);
-        request.Headers.Add(ImpServerDecoder.TIMESTAMP_KEY, timestamp);
+        request.Headers.Add(ImpKeys.PUBLIC_KEY, _keys.Public);
+        request.Headers.Add(ImpKeys.NONCE_KEY, nonce);
+        request.Headers.Add(ImpKeys.SIGN_KEY, sign);
+        request.Headers.Add(ImpKeys.TIMESTAMP_KEY, timestamp);
     }
 
     private static string GetNonce(int count = 16)

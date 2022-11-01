@@ -40,7 +40,12 @@ public abstract class JsonSerializable : IValidity
     /// </summary>
     public static T Deserialize<T>(string? s) where T : JsonSerializable, new()
     {
-        return JsonSerializer.Deserialize<T>(s ?? "", JsonOpts) ?? new T();
+        if (string.IsNullOrWhiteSpace(s))
+        {
+            return new T();
+        }
+
+        return JsonSerializer.Deserialize<T>(s, JsonOpts) ?? new T();
     }
 
     /// <summary>

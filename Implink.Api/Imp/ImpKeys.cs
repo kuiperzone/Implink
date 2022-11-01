@@ -20,8 +20,10 @@
 
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Primitives;
 
 namespace KuiperZone.Implink.Api.Imp;
 
@@ -31,6 +33,26 @@ namespace KuiperZone.Implink.Api.Imp;
 public class ImpKeys
 {
     private readonly byte[] _private;
+
+    /// <summary>
+    /// The timestamp header key name.
+    /// </summary>
+    public const string TIMESTAMP_KEY = "IMP_TIMESTAMP";
+
+    /// <summary>
+    /// The nonce header key name.
+    /// </summary>
+    public const string NONCE_KEY = "IMP_NONCE";
+
+    /// <summary>
+    /// The IMP public header key name.
+    /// </summary>
+    public const string PUBLIC_KEY = "IMP_PUBLIC";
+
+    /// <summary>
+    /// Gets the sign header key name.
+    /// </summary>
+    public const string SIGN_KEY = "IMP_SIGN";
 
     /// <summary>
     /// Default constructor. Authentication is disabled.
@@ -86,8 +108,8 @@ public class ImpKeys
     }
 
     /// <summary>
-    /// Asserts where the request data authenticates agains the private key provided on
-    /// constructor. The routine does nothing if <see cref="IsAuthenticationEnabled"/> is false.
+    /// Asserts that the request data authenticates against the private key. The routine
+    /// does nothing if <see cref="IsAuthenticationEnabled"/> is false.
     /// </summary>
     /// <exception cref="ImpException">Authentication failed</exception>
     public void Assert(string? sign, string? timestamp, string? nonce, string? body)
@@ -116,6 +138,51 @@ public class ImpKeys
                 throw new ImpException("Authentication failed", HttpStatusCode.Unauthorized);
             }
         }
+    }
+
+    /// <summary>
+    /// Overload with request header and body data.
+    /// </summary>
+    /// <exception cref="ImpException">Authentication failed</exception>
+    public void Assert(IDictionary<string, StringValues> headers, string body)
+    {
+        if (IsAuthenticationEnabled)
+        {
+            // Do this before HMAC
+            if (GetHeader(headers, PUBLIC_KEY) != Public)
+            {
+                throw new ImpException("Authentication failed", HttpStatusCode.Unauthorized);
+            }
+
+            string timestamp = GetHeader(headers, TIMESTAMP_KEY);
+            string nonce = GetHeader(headers, NONCE_KEY);
+            string sign = GetHeader(headers, SIGN_KEY);
+            Assert(sign, timestamp, nonce, body);
+        }
+    }
+
+    /// <summary>
+    /// Overload with HTTP request. This variant returns the body content.
+    /// </summary>
+    /// <exception cref="ImpException">Authentication failed</exception>
+    public string Assert(HttpRequestMessage request)
+    {
+        string body = "";
+
+        if (request.Content != null)
+        {
+            body = new StreamReader(request.Content.ReadAsStream(), Encoding.UTF8, false).ReadToEnd();
+        }
+
+        if (IsAuthenticationEnabled)
+        {
+            string timestamp = GetHeader(request.Headers, TIMESTAMP_KEY);
+            string nonce = GetHeader(request.Headers, NONCE_KEY);
+            string sign = GetHeader(request.Headers, SIGN_KEY);
+            Assert(sign, timestamp, nonce, body);
+        }
+
+        return body;
     }
 
     /// <summary>
@@ -154,4 +221,32 @@ public class ImpKeys
     {
         return c.AuthDictionary.GetValueOrDefault(key, "");
     }
+
+    private static string GetHeader(IDictionary<string, StringValues> headers, string key)
+    {
+        var rslt = headers[key].ToString();
+
+        if (rslt.Length != 0)
+        {
+            return rslt;
+        }
+
+        throw new ImpException($"Header {key} undefined");
+    }
+
+    private static string GetHeader(HttpRequestHeaders headers, string key)
+    {
+        if (headers.TryGetValues(key, out IEnumerable<string>? values))
+        {
+            var rslt = values.FirstOrDefault("");
+
+            if (rslt.Length != 0)
+            {
+                return rslt;
+            }
+        }
+
+        throw new ImpException($"Header {key} undefined");
+    }
+
 }
