@@ -22,53 +22,147 @@ using System.Text;
 using System.Text.Json;
 using KuiperZone.Implink.Api;
 using KuiperZone.Utility.Yaal;
+using System.Data;
+using System.Data.SqlClient;
+using Dapper;
+using Npgsql;
 
 namespace KuiperZone.Implink;
 
 /// <summary>
-/// Extends <see cref="DatabaseCore"/> to provide route data.
+/// Database access which internally employs Dapper and supports MySql and PostgreSql.
+/// Additionally, allows for "file database" for testing purposes.
 /// </summary>
-public class RoutingDatabase : DatabaseCore
+public sealed class RoutingDatabase : IDisposable
 {
+    private readonly string? _filename;
+    private readonly IDbConnection? _sqlConnection;
+
     /// <summary>
-    /// Constructor with parameters.
+    /// Constructor with parameters. If kind is file, connection is directory.
     /// </summary>
-    public RoutingDatabase(string kind, string connection)
-        : base(kind, connection)
+    /// <exception cref="ArgumentException">Invalid kind or connection</exception>
+    /// <exception cref="DirectoryNotFoundException">Invalid directory</exception>
+    public RoutingDatabase(DatabaseKind kind, string connection, bool remoteTerminated)
     {
-        if (Kind == FileKind)
+        Kind = kind;
+        Connection = connection;
+        IsRemoteTerminated = remoteTerminated;
+        TableName = IsRemoteTerminated ? "RTRoutes" : "RORoutes";
+
+        if (string.IsNullOrEmpty(Connection))
         {
-            RTFilename = Path.Combine(Connection, "RTRoutes.json");
-            ROFilename = Path.Combine(Connection, "RORoutes.json");
+            throw new ArgumentException($"Undefined {nameof(Connection)}");
+        }
+
+        if (Kind == DatabaseKind.File)
+        {
+            var info = new FileInfo(Connection);
+
+            if (!Directory.Exists(info.Directory?.FullName))
+            {
+                throw new DirectoryNotFoundException("File directory not exist: " + info.Directory?.FullName);
+            }
+
+            _filename = Path.Combine(info.Directory.FullName, TableName + ".json");
+        }
+        else
+        if (Kind == DatabaseKind.File)
+        {
+            _sqlConnection = new SqlConnection(connection);
+        }
+        else
+        if (Kind == DatabaseKind.File)
+        {
+            _sqlConnection = new NpgsqlConnection(connection);
+        }
+        else
+        {
+            throw new ArgumentException("Invalid or unknown database kind: " + kind);
         }
     }
 
     /// <summary>
-    /// Gets the outbound (remote terminated) filename. For test only.
+    /// Gets whether remote terminated.
     /// </summary>
-    public string? RTFilename { get; }
+    public bool IsRemoteTerminated { get; }
 
     /// <summary>
-    /// Gets the inbound (remote originated) filename. For test only.
+    /// Gets the database technology kind.
     /// </summary>
-    public string? ROFilename { get; }
+    public DatabaseKind Kind { get; }
+
+    /// <summary>
+    /// Gets the connection string.
+    /// </summary>
+    public string Connection { get; }
+
+    /// <summary>
+    /// Gets the applicable table name.
+    /// </summary>
+    public string TableName { get; }
+
+    /// <summary>
+    /// Gets or sets whether the connection is open. The connection is opened either by explicitly
+    /// setting true, or automatically on first access. Setting the value may block.
+    /// </summary>
+    public bool IsOpen
+    {
+        get
+        {
+            return _sqlConnection == null ||
+                _sqlConnection.State == ConnectionState.Open ||
+                _sqlConnection.State == ConnectionState.Executing ||
+                    _sqlConnection.State == ConnectionState.Fetching;
+        }
+
+        set
+        {
+            if (_sqlConnection != null && value != IsOpen)
+            {
+                if (!value || _sqlConnection.State == ConnectionState.Broken)
+                {
+                    _sqlConnection.Close();
+                }
+
+                if (value && _sqlConnection.State == ConnectionState.Closed)
+                {
+                    _sqlConnection.Open();
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Disposal pattern.
+    /// </summary>
+    public void Dispose()
+    {
+        _sqlConnection?.Dispose();
+    }
+
+    /// <summary>
+    /// Overrides.
+    /// </summary>
+    public override string ToString()
+    {
+        return Kind + ": " + Connection;
+    }
 
     /// <summary>
     /// Queries all routes, either remote terminated or remote originated. The result is a new instance on each call.
     /// </summary>
-    public IEnumerable<IReadOnlyRouteProfile> QueryAllRoutes(bool remoteTerminated)
+    public IEnumerable<IReadOnlyRouteProfile> QueryAllRoutes()
     {
-        var fname = remoteTerminated ? RTFilename : ROFilename;
-
-        if (fname != null)
+        if (_filename != null)
         {
             var opts = new JsonSerializerOptions();
             opts.PropertyNameCaseInsensitive = true;
 
             try
             {
-                Logger.Global.Debug("Filename: " + fname);
-                var text = File.ReadAllText(fname, Encoding.UTF8);
+                Logger.Global.Debug("Filename: " + _filename);
+                var text = File.ReadAllText(_filename, Encoding.UTF8);
                 Logger.Global.Debug("Text: " + text);
                 return JsonSerializer.Deserialize<RouteProfile[]>(text, opts) ?? Array.Empty<RouteProfile>();
             }
@@ -79,6 +173,18 @@ public class RoutingDatabase : DatabaseCore
         }
 
         return Query<RouteProfile>("SELECT STATEMENT TBD");
+    }
+
+    private IEnumerable<T> Query<T>(string sql)
+    {
+        if (_sqlConnection != null)
+        {
+            // "SELECT * FROM cars"
+            IsOpen = true;
+            return _sqlConnection.Query<T>(sql);
+        }
+
+        throw new InvalidOperationException($"{nameof(Query)} operation not supported for ${Kind}");
     }
 
 }

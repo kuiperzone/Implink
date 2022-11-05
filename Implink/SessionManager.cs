@@ -25,7 +25,7 @@ using KuiperZone.Utility.Yaal;
 namespace KuiperZone.Implink;
 
 /// <summary>
-/// Manages a collection of client sessions.
+/// Manages a collection of client sessions. Thread safe.
 /// </summary>
 public class SessionManager : IClientApi, IDisposable
 {

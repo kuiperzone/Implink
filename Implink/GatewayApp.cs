@@ -28,9 +28,10 @@ namespace KuiperZone.Implink;
 /// <summary>
 /// Manages a collection of client sessions.
 /// </summary>
-public class GatewayApp : IDisposable
+public class GatewayApp : IDisposable, IAsyncDisposable
 {
     private readonly Thread? _thread;
+    private readonly WebApplication _app;
     private readonly SessionManager _manager;
     private readonly RoutingDatabase _database;
     private volatile bool v_disposed;
@@ -38,32 +39,47 @@ public class GatewayApp : IDisposable
     /// <summary>
     /// Constructor. Does not dispose of app or database.
     /// </summary>
-    public GatewayApp(WebApplication app, RoutingDatabase database, bool remoteTerminated)
+    public GatewayApp(string[] args, IReadOnlyAppSettings settings, bool remoteTerminated)
     {
         IsRemoteTerminated = remoteTerminated;
         Logger.Global.Debug($"{nameof(IsRemoteTerminated)}={IsRemoteTerminated}");
 
-        var conf = app.Configuration;
-        RefreshInterval = TimeSpan.FromSeconds(conf.GetValue<int>(nameof(RefreshInterval), 60));
-        Logger.Global.Debug($"{nameof(RefreshInterval)}={RefreshInterval}");
+        Settings = settings;
+        ServerUrl = IsRemoteTerminated ? Settings.RemoteTerminatedUrl : Settings.RemoteOriginatedUrl;
+        Logger.Global.Debug($"{nameof(ServerUrl)}={ServerUrl}");
 
-        ResponseTimeout = TimeSpan.FromMilliseconds(conf.GetValue<int>(nameof(ResponseTimeout), 15000));
-        Logger.Global.Debug($"{nameof(ResponseTimeout)}={ResponseTimeout}");
-
-        _database = database;
-        _manager = new(_database.QueryAllRoutes(IsRemoteTerminated), IsRemoteTerminated);
-
-        if (RefreshInterval > TimeSpan.Zero)
+        if (string.IsNullOrEmpty(ServerUrl))
         {
-            Logger.Global.Debug("Starting thread");
+            throw new ArgumentException($"Undefined in {nameof(ServerUrl)} appsettings");
+        }
+
+        var builder = WebApplication.CreateBuilder(args);
+
+        // Not using
+        builder.Logging.ClearProviders();
+
+        builder.Host.UseSystemd();
+
+        Logger.Global.Debug("Creating database");
+        _database = new(Settings.DatabaseKind, Settings.DatabaseConnection, IsRemoteTerminated);
+
+        Logger.Global.Debug("Creating sessions");
+        _manager = new(_database.QueryAllRoutes(), IsRemoteTerminated);
+
+        Logger.Global.Debug("Building application");
+        _app = builder.Build();
+
+        // https://www.koderdojo.com/blog/asp-net-core-routing-and-routebuilder-mapget-for-calculating-a-factorial
+        _app.MapPost("/" + nameof(SubmitPost), SubmitPostHandler);
+
+        if (Settings.DatabaseRefresh > TimeSpan.Zero)
+        {
+            Logger.Global.Debug($"Starting {nameof(GatewayApp)} thread");
             _thread = new(RunThread);
             _thread.Name = nameof(GatewayApp) + "-" + (IsRemoteTerminated ? "Remote" : "Local");
             _thread.IsBackground = true;
             _thread.Start();
         }
-
-        // https://www.koderdojo.com/blog/asp-net-core-routing-and-routebuilder-mapget-for-calculating-a-factorial
-        app.MapPost("/" + nameof(SubmitPost), SubmitPostHandler);
     }
 
     /// <summary>
@@ -74,23 +90,80 @@ public class GatewayApp : IDisposable
     /// <summary>
     /// Gets the routing information refresh interval.
     /// </summary>
-    public TimeSpan RefreshInterval { get; }
+    public IReadOnlyAppSettings Settings { get; }
 
     /// <summary>
-    /// Gets the response timeout.
+    /// Gets the server URL.
     /// </summary>
-    public TimeSpan ResponseTimeout { get; }
+    public string ServerUrl { get; }
+
+    /// <summary>
+    /// Runs all applications and disposes all instances on return.
+    /// </summary>
+    public static void Run(IEnumerable<GatewayApp> apps)
+    {
+        Logger.Global.Debug("Running applications");
+        var tasks = new List<Task>();
+
+        try
+        {
+            foreach (var item in apps)
+            {
+                tasks.Add(item.RunAsync());
+            }
+
+            Task.WaitAny(tasks.ToArray());
+        }
+        finally
+        {
+            tasks.Clear();
+
+            foreach (var item in apps)
+            {
+                tasks.Add(item.DisposeAsync().AsTask());
+            }
+
+            Task.WaitAll(tasks.ToArray(), 5000);
+        }
+    }
+
+    /// <summary>
+    /// Runs the application.
+    /// </summary>
+    public void Run()
+    {
+        _app.Run(ServerUrl);
+    }
+
+    /// <summary>
+    /// Runs the application asynchronously.
+    /// </summary>
+    public Task RunAsync()
+    {
+        return _app.RunAsync(ServerUrl);
+    }
 
     /// <summary>
     /// Implements dispose.
     /// </summary>
     public void Dispose()
     {
+        DisposeAsync().AsTask().Wait(Settings.ResponseTimeout);
+    }
+
+    /// <summary>
+    /// Implements dispose.
+    /// </summary>
+    public ValueTask DisposeAsync()
+    {
         Logger.Global.Debug("Disposal");
         v_disposed = true;
         _thread?.Interrupt();
 
+        var t = _app.DisposeAsync();
+        _database.Dispose();
         _manager.Dispose();
+        return t;
     }
 
     private async Task<Task> SubmitPostHandler(HttpContext ctx)
@@ -130,7 +203,7 @@ public class GatewayApp : IDisposable
         resp.ContentLength = Encoding.UTF8.GetByteCount(body);
 
         Logger.Global.Debug($"Writing response");
-        return resp.WriteAsync(body, new CancellationTokenSource(ResponseTimeout).Token);
+        return resp.WriteAsync(body, new CancellationTokenSource(Settings.ResponseTimeout).Token);
     }
 
     private void RunThread(object? _)
@@ -141,12 +214,12 @@ public class GatewayApp : IDisposable
         {
             try
             {
-                Thread.Sleep(RefreshInterval);
+                Thread.Sleep(Settings.DatabaseRefresh);
 
                 if (!v_disposed)
                 {
                     Logger.Global.Debug($"Query all routes from database");
-                    _manager.Reload(_database.QueryAllRoutes(IsRemoteTerminated));
+                    _manager.Reload(_database.QueryAllRoutes());
                 }
             }
             catch (Exception e)
@@ -156,4 +229,5 @@ public class GatewayApp : IDisposable
             }
         }
     }
+
 }

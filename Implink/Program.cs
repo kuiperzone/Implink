@@ -49,34 +49,47 @@ class Program
         if (HandleArgsContinue(parser))
         {
             Thread.CurrentThread.Name = "MAINTHREAD";
-#if DEBUG
-            var fopts = new FileSinkOptions();
-            fopts.RemoveLogsOnStart = true;
-            Logger.Global.AddSink(new FileSink(fopts));
-            Logger.Global.AddSink(new ConsoleSink());
-#endif
-            Logger.Global.Write(SeverityLevel.Notice, AppInfo.AppName + " starting");
-            Logger.Global.Write(SeverityLevel.Notice, $"args={parser}");
 
             try
             {
-                var builder = WebApplication.CreateBuilder(args);
+                var conf = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("appsettings.json").Build();
+#if DEBUG
+                var fopts = new FileSinkOptions();
+                fopts.RemoveLogsOnStart = true;
+                Logger.Global.AddSink(new FileSink(fopts));
+                Logger.Global.AddSink(new ConsoleSink());
+#endif
+                var settings = new AppSettings(conf);
 
-                // Not using
-                builder.Logging.ClearProviders();
+                Logger.Global.Write(SeverityLevel.Notice, AppInfo.AppName + " starting");
+                Logger.Global.Write(SeverityLevel.Info, $"args={parser}");
 
-                builder.Host.UseSystemd();
-                var conf = builder.Configuration;
+                Logger.Global.Write($"{nameof(settings.DatabaseKind)}={settings.DatabaseKind}");
+                Logger.Global.Write($"{nameof(settings.DatabaseConnection)}={settings.DatabaseConnection}");
+                Logger.Global.Write($"{nameof(settings.DatabaseRefresh)}={settings.DatabaseRefresh}");
+                Logger.Global.Write($"{nameof(settings.ResponseTimeout)}={settings.ResponseTimeout}");
+                Logger.Global.Write($"{nameof(settings.RemoteTerminatedUrl)}={settings.RemoteTerminatedUrl}");
+                Logger.Global.Write($"{nameof(settings.RemoteOriginatedUrl)}={settings.RemoteOriginatedUrl}");
 
-                var url = GetUrl(conf);
-                Logger.Global.Write(SeverityLevel.Notice, $"RemoteTerminated={RemoteTerminated}");
-                Logger.Global.Write(SeverityLevel.Notice, $"Url={url}");
+                var apps = new List<GatewayApp>();
 
-                using var database = new RoutingDatabase(conf["DatabaseKind"], conf["DatabaseConnection"]);
-                using var app = builder.Build();
-                using var gway = new GatewayApp(app, database, RemoteTerminated);
+                if (!string.IsNullOrEmpty(settings.RemoteTerminatedUrl))
+                {
+                    Logger.Global.Debug("Creating RemoteTerminated app");
+                    apps.Add(new GatewayApp(args, settings, true));
+                }
 
-                app.Run(url);
+
+                if (!string.IsNullOrEmpty(settings.RemoteOriginatedUrl))
+                {
+                    Logger.Global.Debug("Creating RemoteOriginated app");
+                    apps.Add(new GatewayApp(args, settings, false));
+                }
+
+                Logger.Global.Write("Running web applications");
+                GatewayApp.Run(apps);
             }
             catch (Exception e)
             {
@@ -86,20 +99,6 @@ class Program
         }
 
         return 0;
-    }
-
-    private static string GetUrl(IConfiguration conf)
-    {
-        var key = RemoteTerminated ? "RemoteTerminatedUrl" : "RemoteOriginatedUrl";
-
-        var url = conf[key];
-
-        if (string.IsNullOrEmpty(url))
-        {
-            throw new ArgumentException($"{key} undefined in appsettings");
-        }
-
-        return url;
     }
 
     private static bool HandleArgsContinue(ArgumentParser parser)
