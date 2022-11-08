@@ -19,38 +19,45 @@
 // -----------------------------------------------------------------------------
 
 using System.Text;
-using KuiperZone.Utility.Yaal;
 
-namespace KuiperZone.Implink.Api.Imp;
+namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Concrete implementation of <see cref="HttpClientSession"/> for the native IMP API client.
+/// Concrete implementation of <see cref="HttpClientApi"/> for the native IMP API client.
 /// </summary>
-public sealed class ImpClientSession : HttpClientSession
+public sealed class ImpHttpClient : HttpClientApi
 {
     /// <summary>
     /// Constructor.
     /// </summary>
-    public ImpClientSession(IReadOnlyRouteProfile profile, bool remoteTerminated)
-        : base(profile, new ImpSignerFactory(), remoteTerminated, "application/json")
+    public ImpHttpClient(IReadOnlyClientProfile profile, bool remoteTerminated = true)
+        : base(profile, remoteTerminated ? new ImpSignerFactory() : null, "application/json")
     {
+        IsRemoteTerminated = remoteTerminated;
     }
 
     /// <summary>
-    /// Implements <see cref="ClientSession.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
+    /// Gets whether the client is remote terminated, i.e. requests are sent out
+    /// to third-party vendors. Where false, requests are sent over local network
+    /// to an internal platform module (API is always native IMP).
     /// </summary>
-    public override int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
+    bool IsRemoteTerminated { get; }
+
+    /// <summary>
+    /// Implements <see cref="HttpClientApi.ToSubmitRequest"/>.
+    /// </summary>
+    protected override HttpRequestMessage ToSubmitRequest(SubmitPost submit)
     {
-        Logger.Global.Debug(submit.ToString());
         var msg = new HttpRequestMessage(HttpMethod.Post, nameof(SubmitPost));
         msg.Content = new StringContent(submit.ToString(), Encoding.UTF8, "application/json");
+        return msg;
+    }
 
-        Logger.Global.Debug("Sending");
-        var tuple = IsRemoteTerminated ? SignAndSend(msg) : Send(msg);
-
-        Logger.Global.Debug(tuple.Item2);
-        response = JsonSerializable.Deserialize<SubmitResponse>(tuple.Item2);
-        response.ErrorReason ??= tuple.Item1.ToString();
-        return (int)tuple.Item1;
+    /// <summary>
+    /// Implements <see cref="HttpClientApi.ToSubmitResponse"/>.
+    /// </summary>
+    protected override SubmitResponse ToSubmitResponse(string body)
+    {
+        return JsonSerializable.Deserialize<SubmitResponse>(body);
     }
 }

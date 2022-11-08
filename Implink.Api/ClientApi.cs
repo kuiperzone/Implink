@@ -23,34 +23,27 @@ using KuiperZone.Implink.Api.Util;
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Abstract base class for a client session with an external vendor. The concrete
-/// subclass is to implement API conversion and necessary calls over the wire. It need not
-/// implement throttling or message truncation.
+/// Abstract base class for a client. The concrete subclass is to implement API conversion and necessary
+/// calls over the wire. It need not implement throttling or message truncation.
 /// </summary>
-public abstract class ClientSession : IClientApi, IDisposable
+public abstract class ClientApi : IClientApi, IDisposable
 {
     /// <summary>
     /// Constructor.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid profile</exception>
-    public ClientSession(IReadOnlyRouteProfile profile, bool remoteTerminated)
+    public ClientApi(IReadOnlyClientProfile profile)
     {
         profile.AssertValidity();
-        IsRemoteTerminated = remoteTerminated;
         Profile = profile;
         AuthDictionary = DictionaryParser.ToDictionary(profile.Authentication);
         Categories = DictionaryParser.ToSet(profile.Categories);
     }
 
     /// <summary>
-    /// Implements <see cref="IClientApi.IsRemoteTerminated"/>.
-    /// </summary>
-    public bool IsRemoteTerminated { get; }
-
-    /// <summary>
     /// Gets the profile.
     /// </summary>
-    public IReadOnlyRouteProfile Profile { get; }
+    public IReadOnlyClientProfile Profile { get; }
 
     /// <summary>
     /// Gets the authentication dictionary. The dictionary is empty if no authentication is specified.

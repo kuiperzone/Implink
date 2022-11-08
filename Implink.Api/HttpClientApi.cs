@@ -26,22 +26,32 @@ using KuiperZone.Utility.Yaal;
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Abstract base class which extends <see cref="ClientSession"/> to implement an internal
+/// Abstract base class which extends <see cref="ClientApi"/> to implement an internal
 /// <see cref="HttpClient"/> instance. It does not, however, implement the API conversion.
 /// </summary>
-public abstract class HttpClientSession : ClientSession, IClientApi
+public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
 {
-    private readonly HttpClient _client = HttpClientFactory.Create();
-    private int _sendCounter;
-    private int _disposeCounter;
+    private readonly HttpClient _client;
 
     /// <summary>
     /// Constructor. If factory is null, the instance will have no signer.
     /// </summary>
-    public HttpClientSession(IReadOnlyRouteProfile profile, ISignerFactory? factory, bool remoteTerminated,
-        string? contentType = null)
-        : base(profile, remoteTerminated)
+    public HttpClientApi(IReadOnlyClientProfile profile, ISignerFactory? factory, string? contentType = null)
+        : base(profile)
     {
+        if (profile.DisableSslValidation)
+        {
+            Logger.Global.Debug("SSL VALIDATION DISABLED");
+            var handler = new HttpClientHandler();
+            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, sslPolicyErrors) => { return true; };
+            _client = HttpClientFactory.Create(handler);
+        }
+        else
+        {
+            Logger.Global.Debug("SSL validation");
+            _client = HttpClientFactory.Create();
+        }
+
         // https://stackoverflow.com/questions/23438416/why-is-httpclient-baseaddress-not-working
         // You must place a slash at the end of the BaseAddress, and you must not place a slash at the beginning of your relative URI.
         _client.BaseAddress = new Uri(new Uri(Profile.BaseAddress).AbsoluteUri.Trim('/') + '/');
@@ -66,28 +76,42 @@ public abstract class HttpClientSession : ClientSession, IClientApi
     public readonly IHttpSigner? Signer;
 
     /// <summary>
-    /// Overriding method must call base method.
+    /// Implements <see cref="ClientApi.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
     /// </summary>
-    protected override void Dispose(bool disposing)
+    public override int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
     {
-        if (disposing)
+        Logger.Global.Debug(submit.ToString());
+        var msg = ToSubmitRequest(submit);
+
+        Logger.Global.Debug("Sending");
+        var tuple = SignAndSend(msg);
+
+        Logger.Global.Debug("Translate response");
+        Logger.Global.Debug(tuple.Item2);
+        response = ToSubmitResponse(tuple.Item2);
+
+        if (string.IsNullOrEmpty(response.ErrorReason))
         {
-            if (Interlocked.Increment(ref _disposeCounter) == 1)
-            {
-                ThreadPool.QueueUserWorkItem(DisposeProc, this);
-            }
+            response.ErrorReason ??= tuple.Item1.ToString();
         }
-        else
-        {
-            _client.Dispose();
-        }
+
+        return (int)tuple.Item1;
     }
 
     /// <summary>
-    /// Calls <see cref="IHttpSigner.Add"/> where <see cref="ClientSession.AuthDictionary"/> is not empty,
-    /// and returns the result of <see cref="Send"/>. This method is provided for convenience and is expected
-    /// to be called by the implementation of <see cref="ClientSession.SubmitPostRequest"/> with an
-    /// instance of HttpRequestMessage. It does not throw.
+    /// Must be implemented to translate <see cref="SubmitPost"/> to HttpRequestMessage.
+    /// </summary>
+    protected abstract HttpRequestMessage ToSubmitRequest(SubmitPost submit);
+
+    /// <summary>
+    /// Must be implemented to translate response body text to <see cref="SubmitResponse"/>.
+    /// </summary>
+    protected abstract SubmitResponse ToSubmitResponse(string response);
+
+    /// <summary>
+    /// Calls <see cref="IHttpSigner.Add"/> where <see cref="ClientApi.AuthDictionary"/> is not empty,
+    /// and returns the result of <see cref="Send"/>. This method is provided for convenience and is called
+    /// by the default implementation of <see cref="ClientApi.SubmitPostRequest"/>. It does not throw.
     /// </summary>
     protected Tuple<HttpStatusCode, string> SignAndSend(HttpRequestMessage request)
     {
@@ -97,19 +121,18 @@ public abstract class HttpClientSession : ClientSession, IClientApi
     }
 
     /// <summary>
-    /// Sends the request and waits <see cref="IReadOnlyRouteProfile.Timeout"/> milliseconds for a response.
+    /// Sends the request and waits <see cref="IReadOnlyClientProfile.Timeout"/> milliseconds for a response.
     /// The call does not throw, but always returns an instance of <see cref="SendTuple"/>. If the implementation of
-    /// <see cref="ClientSession.SubmitPostRequest"/> does not call <see cref="SignAndSend"/>, it should call
+    /// <see cref="ClientApi.SubmitPostRequest"/> does not call <see cref="SignAndSend"/>, it should call
     /// this method directly.
     /// </summary>
     protected Tuple<HttpStatusCode, string> Send(HttpRequestMessage request)
     {
-        Logger.Global.Debug("Sending");
+        Logger.Global.Debug("Sending...");
 
         try
         {
             string body = "";
-            Interlocked.Increment(ref _sendCounter);
             var resp = _client.Send(request, HttpCompletionOption.ResponseContentRead);
 
             if (resp.Content != null)
@@ -142,18 +165,13 @@ public abstract class HttpClientSession : ClientSession, IClientApi
             resp.ErrorReason = e.InnerException?.Message ?? e.Message;
             return Tuple.Create(HttpStatusCode.InternalServerError, resp.ToString());
         }
-        finally
-        {
-            Interlocked.Decrement(ref _sendCounter);
-        }
     }
 
-    private static void DisposeProc(object? obj)
+    /// <summary>
+    /// Overriding method must call base method.
+    /// </summary>
+    protected override void Dispose(bool disposing)
     {
-        // Wait until finished sending or timeout
-        var t = (HttpClientSession)(obj ?? throw new ArgumentNullException());
-        SpinWait.SpinUntil( () => { return Interlocked.Or(ref t._sendCounter, 0) == 0; }, t.Profile.Timeout);
-        t._client.Dispose();
+        _client.Dispose();
     }
-
 }

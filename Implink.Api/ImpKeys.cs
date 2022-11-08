@@ -23,12 +23,13 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using KuiperZone.Implink.Api.Util;
 using Microsoft.Extensions.Primitives;
 
-namespace KuiperZone.Implink.Api.Imp;
+namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Class used in construction of IMP client and servers.
+/// Immutable class used in construction of IMP client and servers.
 /// </summary>
 public class ImpKeys
 {
@@ -80,10 +81,19 @@ public class ImpKeys
     }
 
     /// <summary>
-    /// Constructor with <see cref="ClientSession"/> instace.
+    /// Constructor with <see cref="IReadOnlyClientProfile"/> instance.
     /// </summary>
     /// <exception cref="ArgumentException">Both PUBLIC and PRIVATE keys must be provided</exception>
-    public ImpKeys(ClientSession client, int deltaSec = 30)
+    public ImpKeys(IReadOnlyClientProfile profile, int deltaSec = 30)
+        : this(GetAuth(profile, out string priv), priv, deltaSec)
+    {
+    }
+
+    /// <summary>
+    /// Constructor with <see cref="ClientApi"/> instace.
+    /// </summary>
+    /// <exception cref="ArgumentException">Both PUBLIC and PRIVATE keys must be provided</exception>
+    public ImpKeys(ClientApi client, int deltaSec = 30)
         : this(GetAuth(client, "PUBLIC"), GetAuth(client, "PRIVATE"), deltaSec)
     {
     }
@@ -108,17 +118,17 @@ public class ImpKeys
     }
 
     /// <summary>
-    /// Asserts that the request data authenticates against the private key. The routine
-    /// does nothing if <see cref="IsAuthenticationEnabled"/> is false.
+    /// Checks that the request data authenticates against the private key. On success, the result
+    /// is null. On failure, the result is an error message. The routine always returns null if
+    /// <see cref="IsAuthenticationEnabled"/> is false.
     /// </summary>
-    /// <exception cref="ImpException">Authentication failed</exception>
-    public void Assert(string? sign, string? timestamp, string? nonce, string? body)
+    public string? Verify(string? sign, string? timestamp, string? nonce, string? body)
     {
         if (IsAuthenticationEnabled)
         {
             if (!long.TryParse(timestamp, out long uxsec))
             {
-                throw new ImpException("Invalid timestamp", HttpStatusCode.Unauthorized);
+                return "Invalid timestamp";
             }
 
             if (AllowedDeltaSeconds > 0)
@@ -127,7 +137,7 @@ public class ImpKeys
 
                 if (now - uxsec > AllowedDeltaSeconds || uxsec - now > AllowedDeltaSeconds)
                 {
-                    throw new ImpException("Timestamp difference too large", HttpStatusCode.Unauthorized);
+                    return "Timestamp difference too large";
                 }
             }
 
@@ -135,54 +145,47 @@ public class ImpKeys
 
             if (comp != sign)
             {
-                throw new ImpException("Authentication failed", HttpStatusCode.Unauthorized);
+                return "Authentication failed";
             }
         }
+
+        return null;
     }
 
     /// <summary>
     /// Overload with request header and body data.
     /// </summary>
-    /// <exception cref="ImpException">Authentication failed</exception>
-    public void Assert(IDictionary<string, StringValues> headers, string body)
+    public string? Verify(IDictionary<string, StringValues> headers, string body)
     {
         if (IsAuthenticationEnabled)
         {
             // Do this before HMAC
             if (GetHeader(headers, PUBLIC_KEY) != Public)
             {
-                throw new ImpException("Authentication failed", HttpStatusCode.Unauthorized);
+                return "Authentication failed";
             }
 
             string timestamp = GetHeader(headers, TIMESTAMP_KEY);
             string nonce = GetHeader(headers, NONCE_KEY);
             string sign = GetHeader(headers, SIGN_KEY);
-            Assert(sign, timestamp, nonce, body);
+            return Verify(sign, timestamp, nonce, body);
         }
+
+        return null;
     }
 
     /// <summary>
-    /// Overload with HTTP request. This variant returns the body content.
+    /// Throws if authentication fails.
     /// </summary>
     /// <exception cref="ImpException">Authentication failed</exception>
-    public string Assert(HttpRequestMessage request)
+    public void Assert(IDictionary<string, StringValues> headers, string body)
     {
-        string body = "";
+        var msg = Verify(headers, body);
 
-        if (request.Content != null)
+        if (msg != null)
         {
-            body = new StreamReader(request.Content.ReadAsStream(), Encoding.UTF8, false).ReadToEnd();
+            throw new ImpException(msg, (int)HttpStatusCode.Unauthorized);
         }
-
-        if (IsAuthenticationEnabled)
-        {
-            string timestamp = GetHeader(request.Headers, TIMESTAMP_KEY);
-            string nonce = GetHeader(request.Headers, NONCE_KEY);
-            string sign = GetHeader(request.Headers, SIGN_KEY);
-            Assert(sign, timestamp, nonce, body);
-        }
-
-        return body;
     }
 
     /// <summary>
@@ -217,7 +220,14 @@ public class ImpKeys
         return "";
     }
 
-    private static string GetAuth(ClientSession c, string key)
+    private static string GetAuth(IReadOnlyClientProfile profile, out string priv)
+    {
+        var p = DictionaryParser.ToDictionary(profile.Authentication);
+        priv = p.GetValueOrDefault("PRIVATE", "");
+        return p.GetValueOrDefault("PUBLIC", "");
+    }
+
+    private static string GetAuth(ClientApi c, string key)
     {
         return c.AuthDictionary.GetValueOrDefault(key, "");
     }

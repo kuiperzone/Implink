@@ -23,7 +23,7 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// Readonly route profile data common to both client and server routing.
 /// </summary>
-public interface IReadOnlyRouteProfile : IValidity, IEquatable<IReadOnlyRouteProfile>
+public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientProfile>
 {
     /// <summary>
     /// Gets the mandatory routing name (case insensitive).
@@ -35,12 +35,19 @@ public interface IReadOnlyRouteProfile : IValidity, IEquatable<IReadOnlyRoutePro
     /// names. If an incoming submission matches <see cref="NameId"/>, it must also match one of the values in
     /// <see cref="Categories"/> if not empty.
     /// </summary>
-    string Categories { get; }
+    string? Categories { get; }
 
     /// <summary>
-    /// Gets the API technology kind. This is a string containing a single supported value, i.e. "Twitter" or "IMPv1".
+    /// Gets the mandatory API technology kind. This is a string containing a single supported value,
+    /// i.e. "Twitter" or "IMPv1".
     /// </summary>
-    string? ApiKind { get; }
+    string ApiKind { get; }
+
+    /// <summary>
+    /// Disables SSL validation, where supported (typically only for IMP protocols). IMPORTANT. The value
+    /// should invariably be set to false. Used primarily for testing.
+    /// </summary>
+    bool DisableSslValidation { get; }
 
     /// <summary>
     /// Gets the mandatory API base URL. The value must begin with "https://" or "http://". For outbound, this would
@@ -51,9 +58,9 @@ public interface IReadOnlyRouteProfile : IValidity, IEquatable<IReadOnlyRoutePro
     string BaseAddress { get; }
 
     /// <summary>
-    /// Gets the vendor specific authentication properties. The value is a mandatory key-value sequence seperated
-    /// by comma. I.e. of form "Key1=Value1,Key2=Value2". The call should assume keys and values are case-sensitive.
-    /// For IMPv1, PRIVATE and PUBLIC key-values must be given, specifying a minimum of 12 random characters each
+    /// Gets the vendor specific authentication properties. The value is a key-value sequence seperated by comma,
+    /// i.e. of form "Key1=Value1,Key2=Value2". The caller should assume keys and values are case-sensitive. For IMPv1,
+    /// PRIVATE and PUBLIC key-values must be given, specifying a minimum of 12 random characters each
     /// (take care to exclude comma). Example: "PRIVATE=Fyhf$34hjfTh94,PUBLIC=KvBd73!sdL84B".
     /// </summary>
     string Authentication { get; }
@@ -67,12 +74,13 @@ public interface IReadOnlyRouteProfile : IValidity, IEquatable<IReadOnlyRoutePro
     /// Gets the maximum number of characters post text. Messages longer than this will be truncated.
     /// A value of 0 or less does nothing.
     /// </summary>
-    public int MaxText { get; }
+    int MaxText { get; }
 
     /// <summary>
     /// Gets a maximum request rate in requests per minute. It applies per client. Requests above this rate will
     /// return a 429 error. A value of zero or less disables throttling. Advisable to specify a positive value
-    /// for server side.
+    /// for remote originated server side. On the remote terminated side, this will prevent gateway from flooding
+    /// destination.
     /// </summary>
     int ThrottleRate { get; }
 

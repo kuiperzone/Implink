@@ -18,30 +18,18 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink;
+namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Database technology kind.
+/// Implements <see cref="ISignerFactory"/> for the native IMP API.
 /// </summary>
-public enum DatabaseKind
+public class ImpSignerFactory : ISignerFactory
 {
     /// <summary>
-    /// Not a valid kind.
+    /// Creates an instance of <see cref="IHttpSigner"/>.
     /// </summary>
-    None = 0,
-
-    /// <summary>
-    /// MySQL compatible database.
-    /// </summary>
-    MySQL,
-
-    /// <summary>
-    /// Postgres compatible database.
-    /// </summary>
-    Postgres,
-
-    /// <summary>
-    /// Json file (testing only).
-    /// </summary>
-    File
+    public IHttpSigner Create(ClientApi client)
+    {
+        return new ImpSigner(new ImpKeys(client));
+    }
 }

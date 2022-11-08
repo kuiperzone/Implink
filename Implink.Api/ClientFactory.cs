@@ -18,28 +18,27 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using KuiperZone.Implink.Api.Imp;
 using KuiperZone.Implink.Api.Thirdparty;
 
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Creates clients according to <see cref="IReadOnlyRouteProfile.ApiKind"/>.
+/// Creates clients according to <see cref="IReadOnlyClientProfile.ApiKind"/>.
 /// </summary>
 public static class ClientFactory
 {
     /// <summary>
-    /// Valid <see cref="IReadOnlyRouteProfile.ApiKind"/>. IMP API.
+    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. IMP API.
     /// </summary>
     public const string ImpV1 = "IMPv1";
 
     /// <summary>
-    /// Valid <see cref="IReadOnlyRouteProfile.ApiKind"/>. Twitter.
+    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Twitter.
     /// </summary>
     public const string Twitter = "Twitter";
 
     /// <summary>
-    /// Valid <see cref="IReadOnlyRouteProfile.ApiKind"/>. Facebook.
+    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Facebook.
     /// </summary>
     public const string Facebook = "Facebook";
 
@@ -65,19 +64,25 @@ public static class ClientFactory
     /// Creates new instance with given route profile.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid ApiKind</exception>
-    public static ClientSession Create(IReadOnlyRouteProfile profile)
+    public static ClientApi Create(IReadOnlyClientProfile profile)
     {
         if (ImpV1.Equals(profile.ApiKind, StringComparison.OrdinalIgnoreCase))
         {
-            return new ImpClientSession(profile, true);
+            return new ImpHttpClient(profile, true);
         }
 
         if (Twitter.Equals(profile.ApiKind, StringComparison.OrdinalIgnoreCase))
         {
-            return new TwitterClientSession(profile);
+            return new TwitterClient(profile);
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.ApiKind))
+        {
+        throw new ArgumentException(
+            $"Undefined {nameof(IReadOnlyClientProfile.ApiKind)} for route {profile.NameId}");
         }
 
         throw new ArgumentException(
-            $"Invalid or unknown {nameof(IReadOnlyRouteProfile.ApiKind)} {profile.ApiKind} for route {profile.NameId}");
+            $"Invalid unknown {nameof(IReadOnlyClientProfile.ApiKind)} {profile.ApiKind} for route {profile.NameId}");
     }
 }

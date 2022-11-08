@@ -18,44 +18,30 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink;
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// Readonly application settings.
+/// Database technology kind.
 /// </summary>
-public interface IReadOnlyAppSettings
+public enum DatabaseKind
 {
     /// <summary>
-    /// Gets the database technology kind.
+    /// Not a valid kind.
     /// </summary>
-    DatabaseKind DatabaseKind { get; }
+    None = 0,
 
     /// <summary>
-    /// Gets the database connection. For "file" kind, this is a path to a directory.
+    /// MySQL compatible database.
     /// </summary>
-    string DatabaseConnection { get; }
+    MySQL,
 
     /// <summary>
-    /// Gets the database refresh interval. A value of 0 disables refresh. Where specified in file,
-    /// value is expressed in seconds.
+    /// Postgres compatible database.
     /// </summary>
-    TimeSpan DatabaseRefresh { get; }
+    Postgres,
 
     /// <summary>
-    /// Gets the response timeout. Where specified in file, value is expressed in milliseconds.
+    /// Json file (testing only).
     /// </summary>
-    TimeSpan ResponseTimeout { get; }
-
-    /// <summary>
-    /// Gets the private server URL for remote terminated requests. This must always be on the
-    /// internal LAN and may, therefore, be HTTP rather than HTTPS.
-    /// </summary>
-    string RemoteTerminatedUrl { get; }
-
-    /// <summary>
-    /// Gets the public server URL for remote originated requests. This will typically be exposed
-    /// to the public internet and should be HTTPS.
-    /// </summary>
-    string RemoteOriginatedUrl { get; }
-
+    File
 }

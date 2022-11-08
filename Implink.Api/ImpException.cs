@@ -20,10 +20,10 @@
 
 using System.Net;
 
-namespace KuiperZone.Implink.Api.Imp;
+namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Custom exception class. Indicates carrying out request.
+/// Custom exception class. Indicates failure carrying out request.
 /// </summary>
 public class ImpException : InvalidOperationException
 {

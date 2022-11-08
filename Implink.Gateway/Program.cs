@@ -22,11 +22,12 @@ using KuiperZone.Utility.Yaal;
 using KuiperZone.Utility.Yaal.Sinks;
 using KuiperZone.Utility.Yaap;
 
-namespace KuiperZone.Implink;
+namespace KuiperZone.Implink.Gateway;
 
 class Program
 {
-    private static bool RemoteTerminated;
+    private static bool? ForwardWait;
+    private static bool? FileDatabase;
 
     // REFERENCE
     // ASP WebApp-application:
@@ -49,6 +50,7 @@ class Program
         if (HandleArgsContinue(parser))
         {
             Thread.CurrentThread.Name = "MAINTHREAD";
+            var apps = new List<GatewayApp>();
 
             try
             {
@@ -62,34 +64,40 @@ class Program
                 Logger.Global.AddSink(new ConsoleSink());
 #endif
                 var settings = new AppSettings(conf);
-
                 Logger.Global.Write(SeverityLevel.Notice, AppInfo.AppName + " starting");
                 Logger.Global.Write(SeverityLevel.Info, $"args={parser}");
 
-                Logger.Global.Write($"{nameof(settings.DatabaseKind)}={settings.DatabaseKind}");
-                Logger.Global.Write($"{nameof(settings.DatabaseConnection)}={settings.DatabaseConnection}");
-                Logger.Global.Write($"{nameof(settings.DatabaseRefresh)}={settings.DatabaseRefresh}");
-                Logger.Global.Write($"{nameof(settings.ResponseTimeout)}={settings.ResponseTimeout}");
-                Logger.Global.Write($"{nameof(settings.RemoteTerminatedUrl)}={settings.RemoteTerminatedUrl}");
-                Logger.Global.Write($"{nameof(settings.RemoteOriginatedUrl)}={settings.RemoteOriginatedUrl}");
+                if (ForwardWait.HasValue)
+                {
+                    settings.ForwardWait = ForwardWait.Value;
+                }
 
-                var apps = new List<GatewayApp>();
+                if (FileDatabase.GetValueOrDefault())
+                {
+                    settings.DatabaseKind = DatabaseKind.File;
+                    settings.DatabaseConnection = "./";
+                }
 
-                if (!string.IsNullOrEmpty(settings.RemoteTerminatedUrl))
+                Logger.Global.Write(SeverityLevel.Info, $"settings={settings}");
+                settings.AssertValidity();
+
+                if (!string.IsNullOrWhiteSpace(settings.RemoteTerminatedUrl))
                 {
                     Logger.Global.Debug("Creating RemoteTerminated app");
                     apps.Add(new GatewayApp(args, settings, true));
                 }
 
 
-                if (!string.IsNullOrEmpty(settings.RemoteOriginatedUrl))
+                if (!string.IsNullOrWhiteSpace(settings.RemoteOriginatedUrl))
                 {
                     Logger.Global.Debug("Creating RemoteOriginated app");
                     apps.Add(new GatewayApp(args, settings, false));
                 }
 
                 Logger.Global.Write("Running web applications");
-                GatewayApp.Run(apps);
+                GatewayApp.RunAll(apps);
+
+                Logger.Global.Write("LOG ERROR: " + Logger.Global.Error?.ToString());
             }
             catch (Exception e)
             {
@@ -108,7 +116,8 @@ class Program
             Console.WriteLine("Usage:");
             Console.WriteLine("    -h, --help: Help information");
             Console.WriteLine("    -v, --version: Version information");
-            Console.WriteLine("    -o, --remoteOrig: Remote originated");
+            Console.WriteLine("    -w, --forwardWait: Override ForwardWait (test only)");
+            Console.WriteLine("    -d, --fileDatabase: Force local file datavbase (test only");
             return false;
         }
 
@@ -118,8 +127,15 @@ class Program
             return false;
         }
 
-        bool remoteOrig = parser.GetOrDefault("o", false) || parser.GetOrDefault("remoteOrig", false);
-        RemoteTerminated = !remoteOrig;
+        if (parser.GetOrDefault("w", "") != "" || parser.GetOrDefault("forwardWait", "") != "")
+        {
+            ForwardWait = parser.GetOrDefault("w", false) || parser.GetOrDefault("forwardWait", false);
+        }
+
+        if (parser.GetOrDefault("d", "") != "" || parser.GetOrDefault("fileDatabase", "") != "")
+        {
+            FileDatabase = parser.GetOrDefault("d", false) || parser.GetOrDefault("fileDatabase", false);
+        }
 
         return true;
     }

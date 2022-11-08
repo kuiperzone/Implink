@@ -19,25 +19,28 @@
 // -----------------------------------------------------------------------------
 
 using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 using KuiperZone.Implink.Api;
-using KuiperZone.Implink.Api.Imp;
+using KuiperZone.Implink.Gateway;
 using KuiperZone.Utility.Yaal;
 using KuiperZone.Utility.Yaal.Sinks;
 using KuiperZone.Utility.Yaap;
-using Microsoft.Extensions.Configuration;
 
 namespace KuiperZone.Implink.Stub;
 
 class Program
 {
-    private const string NameId = "TestNameId";
+    // Make these compile time constants
+    private const string Stub = "STUB : ";
     private const string RemoteUrl = "https://localhost:39668";
-    private static readonly SubmitPost Submit = new();
+    private const string LocalUrl = "http://localhost:39669";
+    private const string TestNameId = "TestNameId";
+    private const string AuthFailNameId = "AuthFailNameId";
+    private const string TestNameWithCatId = "TestNameWithCatId";
+    private const string TestCategory = "TestCategory";
 
     private static bool StartImplink;
-    private static bool RemoteOriginated;
-
     private static volatile bool v_impStarted;
 
     // REFERENCE
@@ -56,6 +59,7 @@ class Program
     /// </summary>
     public static int Main(string[] args)
     {
+        int result = 0;
         var parser = new ArgumentParser(args);
 
         if (HandleArgsContinue(parser))
@@ -63,9 +67,12 @@ class Program
             var fopts = new FileSinkOptions();
             fopts.RemoveLogsOnStart = true;
             Logger.Global.AddSink(new FileSink(fopts));
-            Logger.Global.AddSink(new ConsoleSink());
 
-            Logger.Global.Debug("START STUB: " + parser.ToString());
+            var copts = new ConsoleSinkOptions();
+            copts.Threshold = SeverityLevel.Info;
+            Logger.Global.AddSink(new ConsoleSink(copts));
+
+            Logger.Global.Debug($"{Stub}Main: " + parser.ToString());
             Thread? impThread = null;
 
             try
@@ -74,13 +81,21 @@ class Program
                     .SetBasePath(Directory.GetCurrentDirectory())
                     .AddJsonFile("appsettings.json").Build();
 
-                var impUrl = GetUrl(conf);
-                WriteRTRoutes();
+                var settings = new AppSettings(conf);
+                settings.AssertValidity();
+
+                // Remote server verifies athentication
+                WriteRoutes(true);
+                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpKeys(CreateImpProfile(RemoteUrl, true, false)));
+
+                // Local on LAN, so no authentication
+                WriteRoutes(false);
+                using var localServer = new ImpServer(LocalUrl, false);
 
                 if (StartImplink)
                 {
-                    Logger.Global.Debug("Starting Implink");
-                    impThread = new(ImpStart);
+                    Logger.Global.Write("Starting Implink");
+                    impThread = new(StartGateway);
                     impThread.Start(parser);
 
                     if (!SpinWait.SpinUntil(() => { return v_impStarted; }, 2000))
@@ -89,25 +104,23 @@ class Program
                     }
                 }
 
-                var profile = new RouteProfile();
-                profile.NameId = NameId;
-                profile.ApiKind = ClientFactory.ImpV1;
-                profile.BaseAddress = impUrl;
+                if (!string.IsNullOrEmpty(settings.RemoteTerminatedUrl))
+                {
+                    // Send to gateway, which will forward to "remote server" and return response
+                    Logger.Global.Write(SeverityLevel.Notice, $"{Stub}REMOTE TERMINATED TESTS");
+                    RunTests(settings.RemoteTerminatedUrl, true);
+                }
 
-                Logger.Global.Debug("Sending SubmitPost to: " + impUrl);
-                var client = new ImpClientSession(profile, true);
-                int code = client.SubmitPostRequest(Submit, out SubmitResponse resp);
-
-                Logger.Global.Debug("HTTP Code: " + code);
-                Logger.Global.Debug(resp.ToString());
-
-
-                Thread.Sleep(500);
-                return code == 200 ? 0 : 1;
+                if (!string.IsNullOrEmpty(settings.RemoteOriginatedUrl))
+                {
+                    // Send to gateway, which will forward to "remote server" and return response
+                    Logger.Global.Write(SeverityLevel.Notice, $"{Stub}REMOTE ORIGINATED TESTS");
+                    RunTests(settings.RemoteOriginatedUrl, false);
+                }
             }
             catch (Exception e)
             {
-                Logger.Global.Debug(e);
+                Logger.Global.Write(e);
                 return 1;
             }
             finally
@@ -116,38 +129,148 @@ class Program
             }
         }
 
+        return result;
+    }
+
+    private static int RunTests(string gwUrl, bool rt)
+    {
+        // Should be bi-directional for both RT and RO
+        int result = 0;
+        gwUrl = gwUrl.Replace("/*:", "/localhost:");
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}GW URL: " + gwUrl);
+
+        string prefix = Stub + (rt ? "RT" : "RO") + " SubmitPost";
+
+        // Create profile directed at Gateway
+        var profile = CreateImpProfile(gwUrl, rt, false);
+        using var client = new ImpHttpClient(profile, true);
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (no Category)");
+        var sub = CreateSubmit(false);
+        result += AssertOK(client.SubmitPostRequest(sub, out SubmitResponse resp), resp);
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (with Category)");
+        sub = CreateSubmit(true);
+        result += AssertOK(client.SubmitPostRequest(sub, out resp), resp);
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (with MsgId)");
+        sub = CreateSubmit(false, "MSG1234567890");
+        result += AssertOK(client.SubmitPostRequest(sub, out resp), resp, "MSG1234567890");
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid name)");
+        sub = CreateSubmit(false);
+        sub.NameId = "InvalidName";
+        result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid category)");
+        sub = CreateSubmit(true);
+        sub.Category = "InvalidCategory";
+        result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid authentication)");
+        sub = CreateSubmit(false);
+        sub.NameId = AuthFailNameId;
+        result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.Unauthorized, resp);
+
+        return result;
+    }
+
+    private static int AssertExpect(int code, HttpStatusCode exp, SubmitResponse resp)
+    {
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}StatusCode: " + code + " (" + (HttpStatusCode)code + ")");
+
+        if (code != (int)exp)
+        {
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED {exp} {(int)exp} expected, but {code} received");
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}{nameof(resp.ErrorReason)} = {resp.ErrorReason}");
+
+            return 1;
+        }
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}OK");
         return 0;
     }
 
-    private static RouteProfile WriteRTRoutes()
+    private static int AssertOK(int code, SubmitResponse resp, string? expectId = null)
     {
-        var imp = new RouteProfile();
-        imp.NameId = NameId;
-        imp.ApiKind = ClientFactory.ImpV1;
-        imp.BaseAddress = RemoteUrl;
-        imp.Authentication = "PRIVATE=Fyhf$34hjfTh94,PUBLIC=KvBd73!sdL84B";
-        imp.UserAgent = "Implink";
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}StatusCode = " + code + " (" + (HttpStatusCode)code + ")");
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}MsgId = " + resp.MsgId);
 
-        var arr = new RouteProfile[] { imp };
-        var s = JsonSerializer.Serialize(arr);
-
-        File.WriteAllText("./RTRoutes.json", s);
-
-        return imp;
-    }
-
-    private static string GetUrl(IConfiguration conf)
-    {
-        var key = RemoteOriginated ? "RemoteOriginatedUrl" : "RemoteTerminatedUrl";
-
-        var url = conf[key];
-
-        if (string.IsNullOrEmpty(url))
+        if (code != 200)
         {
-            throw new ArgumentException($"{key} undefined in appsettings");
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - " + resp);
+            return 1;
         }
 
-        return url.Replace("/*:", "/localhost:");
+        if (string.IsNullOrWhiteSpace(resp.MsgId))
+        {
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - MsgId empty");
+            return 1;
+        }
+
+        if (expectId != null && expectId != resp.MsgId)
+        {
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - Expected MsgId: " + expectId);
+            return 1;
+        }
+
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}OK");
+        return 0;
+    }
+
+    private static void WriteRoutes(bool rt)
+    {
+        var addr = RemoteUrl;
+        var fname = "./RTRoutes.json";
+
+        if (!rt)
+        {
+            addr = LocalUrl;
+            fname = "./RORoutes.json";
+        }
+
+        var list = new List<ClientProfile>();
+        list.Add(CreateImpProfile(addr, rt, false));
+        list.Add(CreateImpProfile(addr, rt, true));
+
+        var temp = CreateImpProfile(addr, rt, false);
+        temp.NameId = AuthFailNameId;
+        temp.Authentication = $"PRIVATE=123ABC,PUBLIC=321EFG";
+        list.Add(temp);
+
+        var s = JsonSerializer.Serialize(list.ToArray());
+        File.WriteAllText(fname, s);
+    }
+
+    private static ClientProfile CreateImpProfile(string addr, bool rt, bool hasCategory)
+    {
+        var p = new ClientProfile();
+        p.BaseAddress = addr;
+        p.NameId = hasCategory ? TestNameWithCatId : TestNameId;
+        p.Categories = hasCategory ? TestCategory : null;
+
+        // Disable for local tests
+        p.DisableSslValidation = true;
+
+        // Unique authentication based on values
+        p.Authentication = $"PRIVATE=123{rt.GetHashCode()},PUBLIC=321{rt.GetHashCode()}";
+
+        p.ApiKind = ClientFactory.ImpV1;
+        p.UserAgent = "Implink";
+        return p;
+    }
+
+    private static SubmitPost CreateSubmit(bool hasCategory, string? msgId = null)
+    {
+        var s = new SubmitPost();
+        s.NameId = hasCategory ? TestNameWithCatId : TestNameId;
+        s.Category = hasCategory ? TestCategory : null;
+        s.MsgId = msgId;
+
+        s.UserName = "TestUser";
+        s.Text = "Test message";
+
+        return s;
     }
 
     private static bool HandleArgsContinue(ArgumentParser parser)
@@ -157,7 +280,6 @@ class Program
             Console.WriteLine("Usage:");
             Console.WriteLine("    -h, --help: Help information");
             Console.WriteLine("    -v, --version: Version information");
-            Console.WriteLine("    -o, --remoteOrig: Remote originated");
             Console.WriteLine("    --start: Start Implink platform");
             return false;
         }
@@ -168,26 +290,16 @@ class Program
             return false;
         }
 
-        RemoteOriginated = parser.GetOrDefault("o", false) || parser.GetOrDefault("remoteOrig", false);
         StartImplink = parser.GetOrDefault("start", false);
-
-        Submit.NameId = NameId;
-        Submit.UserName = "TestUser";
-        Submit.Category = "Category";
-        Submit.MsgId = "msgid123";
-        Submit.Text = "Test message";
-
         return true;
     }
 
-    private static void ImpStart(object? _)
+    private static void StartGateway(object? _)
     {
-        var args = RemoteOriginated ? "-o" : "";
-
         var info = new ProcessStartInfo
         {
-            FileName = nameof(Implink),
-            Arguments = args,
+            FileName = "Implink.Gateway",
+            Arguments = "--forwardWait --fileDatabase",
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

@@ -25,10 +25,10 @@ using CoreTweet;
 namespace KuiperZone.Implink.Api.Thirdparty;
 
 /// <summary>
-/// Concrete implementation of <see cref="ClientSession"/> for the Twitter API. The API requires
+/// Concrete implementation of <see cref="ClientApi"/> for the Twitter API. The API requires
 /// the following authentication key-values be provisioned: "consumer_key", "consumer_secret".
 /// </summary>
-public sealed class TwitterClientSession : ClientSession, IClientApi
+public sealed class TwitterClient : ClientApi, IClientApi
 {
     // We are using third-party package:
     // https://github.com/CoreTweet/CoreTweet
@@ -45,15 +45,15 @@ public sealed class TwitterClientSession : ClientSession, IClientApi
     /// <summary>
     /// Constructor.
     /// </summary>
-    public TwitterClientSession(IReadOnlyRouteProfile profile)
-        : base(profile, true)
+    public TwitterClient(IReadOnlyClientProfile profile)
+        : base(profile)
     {
         _key = AuthDictionary["consumer_key"];
         _secret = AuthDictionary["consumer_secret"];
     }
 
     /// <summary>
-    /// Implements <see cref="ClientSession.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
+    /// Implements <see cref="ClientApi.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
     /// </summary>
     public override int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
     {

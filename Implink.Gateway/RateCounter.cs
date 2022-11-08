@@ -18,7 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink;
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
 /// Simple request rate counter. Thread safe.

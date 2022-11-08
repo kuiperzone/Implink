@@ -20,34 +20,44 @@
 
 using System.Net;
 using KuiperZone.Implink.Api;
-using KuiperZone.Implink.Api.Imp;
 
-namespace KuiperZone.Implink;
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// A container class for an instance of <see cref="ClientSession"/>, which also provides rate limiting.
+/// A container class for an instance of <see cref="ClientApi"/>, which also provides rate limiting.
 /// </summary>
-public class SessionContainer : IDisposable
+public class ClientContainer : IClientApi, IDisposable
 {
     /// <summary>
-    /// Constructor. This instance will own the session and dispose of it.
+    /// Constructor. This instance will own the client and dispose of it.
     /// </summary>
-    public SessionContainer(ClientSession session)
+    public ClientContainer(ClientApi client, bool remoteTerminated = true)
     {
-        Client = session;
-        Counter = new(session.Profile.ThrottleRate);
+        IsRemoteTerminated = remoteTerminated;
+        Client = client;
+        Counter = new(client.Profile.ThrottleRate);
+
+        if (!remoteTerminated && Client.Profile.ApiKind == ClientFactory.ImpV1)
+        {
+            AuthenticationKeys = new ImpKeys(client);
+        }
     }
 
     /// <summary>
-    /// Constructor in which the session is created according to
-    /// <see cref="IReadOnlyRouteProfile.ApiKind"/>. Where remoteTerminated is false, the API kind is
-    /// ignored as the session is always an instance of <see cref="ImpClientSession"/>.
+    /// Constructor in which the client is created according to <see cref="IReadOnlyClientProfile.ApiKind"/>.
+    /// Where remoteTerminated is false, the API kind is ignored as the client is always an instance of
+    /// <see cref="ImpHttpClient"/>.
     /// </summary>
-    public SessionContainer(IReadOnlyRouteProfile profile, bool remoteTerminated)
-        : this(remoteTerminated ? ClientFactory.Create(profile) : new ImpClientSession(profile, false))
+    public ClientContainer(IReadOnlyClientProfile profile, bool remoteTerminated)
+        : this(remoteTerminated ? ClientFactory.Create(profile) : new ImpHttpClient(profile, false), remoteTerminated)
     {
 
     }
+
+    /// <summary>
+    /// Gets whether remote terminated.
+    /// </summary>
+    public bool IsRemoteTerminated { get; }
 
     /// <summary>
     /// Gets a rate counter.
@@ -57,10 +67,15 @@ public class SessionContainer : IDisposable
     /// <summary>
     /// Gets the client.
     /// </summary>
-    public ClientSession Client { get; }
+    public ClientApi Client { get; }
 
     /// <summary>
-    /// Calls <see cref="IClientApi.SubmitPostRequest"/> and truncates message if too long.
+    /// Gets IMP authentication keys.
+    /// </summary>
+    public ImpKeys? AuthenticationKeys { get; }
+
+    /// <summary>
+    /// Calls <see cref="IClientApi.SubmitPostRequest"/>, implements throttling and truncates message if too long.
     /// </summary>
     public int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
     {

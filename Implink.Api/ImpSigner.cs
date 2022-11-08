@@ -21,19 +21,19 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace KuiperZone.Implink.Api.Imp;
+namespace KuiperZone.Implink.Api;
 
 /// <summary>
 /// Implements <see cref="IHttpSigner"/> for the native IMP API.
 /// </summary>
-public class ImpClientSigner : IHttpSigner
+public class ImpSigner : IHttpSigner
 {
     private readonly ImpKeys _keys;
 
     /// <summary>
     /// Constructor with key instance.
     /// </summary>
-    public ImpClientSigner(ImpKeys keys)
+    public ImpSigner(ImpKeys keys)
     {
         _keys = keys;
     }
@@ -44,7 +44,6 @@ public class ImpClientSigner : IHttpSigner
     public void Add(HttpRequestMessage request)
     {
         string nonce = GetNonce();
-        // CallLogger.Debug("Nonce: {0}", nonce);
 
         // Future proof - a version ID
         request.Headers.Add("IMP_API", ClientFactory.ImpV1);

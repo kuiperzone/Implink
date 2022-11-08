@@ -27,13 +27,13 @@ using System.Data.SqlClient;
 using Dapper;
 using Npgsql;
 
-namespace KuiperZone.Implink;
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
 /// Database access which internally employs Dapper and supports MySql and PostgreSql.
 /// Additionally, allows for "file database" for testing purposes.
 /// </summary>
-public sealed class RoutingDatabase : IDisposable
+public sealed class RouteDatabase : IDisposable
 {
     private readonly string? _filename;
     private readonly IDbConnection? _sqlConnection;
@@ -43,7 +43,7 @@ public sealed class RoutingDatabase : IDisposable
     /// </summary>
     /// <exception cref="ArgumentException">Invalid kind or connection</exception>
     /// <exception cref="DirectoryNotFoundException">Invalid directory</exception>
-    public RoutingDatabase(DatabaseKind kind, string connection, bool remoteTerminated)
+    public RouteDatabase(DatabaseKind kind, string connection, bool remoteTerminated)
     {
         Kind = kind;
         Connection = connection;
@@ -152,7 +152,7 @@ public sealed class RoutingDatabase : IDisposable
     /// <summary>
     /// Queries all routes, either remote terminated or remote originated. The result is a new instance on each call.
     /// </summary>
-    public IEnumerable<IReadOnlyRouteProfile> QueryAllRoutes()
+    public IEnumerable<IReadOnlyClientProfile> QueryAllRoutes()
     {
         if (_filename != null)
         {
@@ -164,15 +164,15 @@ public sealed class RoutingDatabase : IDisposable
                 Logger.Global.Debug("Filename: " + _filename);
                 var text = File.ReadAllText(_filename, Encoding.UTF8);
                 Logger.Global.Debug("Text: " + text);
-                return JsonSerializer.Deserialize<RouteProfile[]>(text, opts) ?? Array.Empty<RouteProfile>();
+                return JsonSerializer.Deserialize<ClientProfile[]>(text, opts) ?? Array.Empty<ClientProfile>();
             }
             catch (FileNotFoundException)
             {
-                return Array.Empty<RouteProfile>();
+                return Array.Empty<ClientProfile>();
             }
         }
 
-        return Query<RouteProfile>("SELECT STATEMENT TBD");
+        return Query<ClientProfile>("SELECT STATEMENT TBD");
     }
 
     private IEnumerable<T> Query<T>(string sql)

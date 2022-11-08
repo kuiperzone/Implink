@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Implink", "Implink\Implink.csproj", "{C2291427-BE32-4259-8548-36A88526F272}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Implink.Gateway", "Implink.Gateway\Implink.Gateway.csproj", "{C2291427-BE32-4259-8548-36A88526F272}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Implink.Test", "TESTING\Implink.Test\Implink.Test.csproj", "{F449BA3F-60FA-4F9F-8FD9-640350BB7CC0}"
 EndProject

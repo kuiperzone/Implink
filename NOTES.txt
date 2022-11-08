@@ -1,4 +1,6 @@
 To do:
 
+REPLACE illegal chars in Yaal file naming
+
 Set MsgId in SubmitPost and SubmitResponse
 SubmitResponse -> SubmitResp

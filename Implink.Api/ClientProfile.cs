@@ -21,57 +21,62 @@
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// A serializable class which implements <see cref="IReadOnlyRouteProfile"/> and provides setters.
+/// A serializable class which implements <see cref="IReadOnlyClientProfile"/> and provides setters.
 /// </summary>
-public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, IEquatable<IReadOnlyRouteProfile>
+public class ClientProfile : JsonSerializable, IReadOnlyClientProfile, IValidity, IEquatable<IReadOnlyClientProfile>
 {
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.NameId"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.NameId"/> and provides a setter.
     /// </summary>
     public string NameId { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.Categories"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.Categories"/> and provides a setter.
     /// </summary>
-    public string Categories { get; set; } = "";
+    public string? Categories { get; set; }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.ApiKind"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.ApiKind"/> and provides a setter.
     /// </summary>
-    public string? ApiKind { get; set; }
+    public string ApiKind { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.BaseAddress"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.DisableSslValidation"/> and provides a setter.
+    /// </summary>
+    public bool DisableSslValidation { get; set; }
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyClientProfile.BaseAddress"/> and provides a setter.
     /// </summary>
     public string BaseAddress { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.Authentication"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.Authentication"/> and provides a setter.
     /// </summary>
     public string Authentication { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.UserAgent"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.UserAgent"/> and provides a setter.
     /// </summary>
     public string? UserAgent { get; set; }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.MaxText"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.MaxText"/> and provides a setter.
     /// </summary>
     public int MaxText { get; set; }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.ThrottleRate"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.ThrottleRate"/> and provides a setter.
     /// </summary>
     public int ThrottleRate { get; set; }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.Timeout"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.Timeout"/> and provides a setter.
     /// </summary>
     public int Timeout { get; set; } = 15000;
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.GetKey"/>.
+    /// Implements <see cref="IReadOnlyClientProfile.GetKey"/>.
     /// </summary>
     public string GetKey()
     {
@@ -84,23 +89,23 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, 
     /// </summary>
     public override bool CheckValidity(out string message)
     {
-        const string ClassName = nameof(RouteProfile);
+        const string ClassName = nameof(ClientProfile);
 
         if (string.IsNullOrWhiteSpace(NameId))
         {
-            message = $"{ClassName}.{nameof(RouteProfile.NameId)} is mandatory";
+            message = $"{ClassName}.{nameof(ClientProfile.NameId)} is mandatory";
             return false;
         }
 
         if (!BaseAddress.StartsWith("https://") && !BaseAddress.StartsWith("http://"))
         {
-            message = $"{nameof(RouteProfile.BaseAddress)} must start 'https://' or 'http://' for {ClassName}.{nameof(RouteProfile.NameId)}={NameId}";
+            message = $"{nameof(ClientProfile.BaseAddress)} must start 'https://' or 'http://' for {ClassName}.{nameof(ClientProfile.NameId)}={NameId}";
             return false;
         }
 
         if (Timeout < 1)
         {
-            message = $"{nameof(RouteProfile.Timeout)} must be positive for {ClassName}.{nameof(RouteProfile.NameId)} {NameId}";
+            message = $"{nameof(ClientProfile.Timeout)} must be positive for {ClassName}.{nameof(ClientProfile.NameId)} {NameId}";
             return false;
         }
 
@@ -111,7 +116,7 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, 
     /// <summary>
     /// Implements <see cref="IEquatable{T}"/>.
     /// </summary>
-    public virtual bool Equals(IReadOnlyRouteProfile? obj)
+    public virtual bool Equals(IReadOnlyClientProfile? obj)
     {
         if (obj == this)
         {
@@ -122,6 +127,7 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, 
             NameId == obj.NameId &&
             Categories == obj.Categories &&
             ApiKind == obj.ApiKind &&
+            DisableSslValidation == obj.DisableSslValidation &&
             BaseAddress == obj.BaseAddress &&
             Authentication == obj.Authentication &&
             UserAgent == obj.UserAgent &&
@@ -139,7 +145,7 @@ public class RouteProfile : JsonSerializable, IReadOnlyRouteProfile, IValidity, 
     /// </summary>
     public sealed override bool Equals(object? obj)
     {
-        return Equals(obj as IReadOnlyRouteProfile);
+        return Equals(obj as IReadOnlyClientProfile);
     }
 
     /// <summary>

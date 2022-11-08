@@ -70,7 +70,7 @@ public class SubmitPost : RequestMessage
 
     /// <summary>
     /// Gets or sets the parent message ID. If empty, this is a top-level post. If specified,
-    /// this isa  reply to an existing message, which must exist on the destination.
+    /// this is a reply to an existing message, which must exist on the destination.
     /// </summary>
     public string? ParentId { get; set; }
 

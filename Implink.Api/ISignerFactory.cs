@@ -22,12 +22,12 @@ namespace KuiperZone.Implink.Api;
 
 /// <summary>
 /// A factory for <see cref="IHttpSigner"/>. A factory instance is necessary for
-/// construction of <see cref="HttpClientSession"/>.
+/// construction of <see cref="HttpClientApi"/>.
 /// </summary>
 public interface ISignerFactory
 {
     /// <summary>
     /// Creates an instance of <see cref="IHttpSigner"/>.
     /// </summary>
-    IHttpSigner Create(ClientSession client);
+    IHttpSigner Create(ClientApi client);
 }

@@ -21,8 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Implink\Implink.csproj" />
-    <ProjectReference Include="..\Implink.Stub\Implink.Stub.csproj" />
+    <ProjectReference Include="..\..\Implink.Gateway\Implink.Gateway.csproj" />
   </ItemGroup>
 
 </Project>

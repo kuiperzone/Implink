@@ -18,14 +18,14 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using KuiperZone.Utility.Yaal;
+using KuiperZone.Implink.Api;
 
-namespace KuiperZone.Implink;
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
 /// Implements <see cref="IReadOnlyAppSettings"/>.
 /// </summary>
-public class AppSettings : IReadOnlyAppSettings
+public class AppSettings : JsonSerializable, IReadOnlyAppSettings
 {
     /// <summary>
     /// Default constructor.
@@ -43,6 +43,7 @@ public class AppSettings : IReadOnlyAppSettings
         DatabaseConnection = conf[nameof(DatabaseKind)].Trim();
         DatabaseRefresh = TimeSpan.FromSeconds(conf.GetValue<int>(nameof(DatabaseRefresh), 60));
         ResponseTimeout = TimeSpan.FromSeconds(conf.GetValue<int>(nameof(ResponseTimeout), 5000));
+        ForwardWait = conf.GetValue<bool>(nameof(ForwardWait), false);
         RemoteTerminatedUrl = conf[nameof(RemoteTerminatedUrl)].Trim();
         RemoteOriginatedUrl = conf[nameof(RemoteOriginatedUrl)].Trim();
     }
@@ -68,6 +69,11 @@ public class AppSettings : IReadOnlyAppSettings
     public TimeSpan ResponseTimeout { get; set; } = TimeSpan.FromMilliseconds(5000);
 
     /// <summary>
+    /// Implements <see cref="IReadOnlyAppSettings.ForwardWait"/> and provides a setter.
+    /// </summary>
+    public bool ForwardWait { get; set; }
+
+    /// <summary>
     /// Implements <see cref="IReadOnlyAppSettings.RemoteOriginatedUrl"/> and provides a setter.
     /// </summary>
     public string RemoteTerminatedUrl { get; set; } = "http://localhost:38668";
@@ -77,4 +83,30 @@ public class AppSettings : IReadOnlyAppSettings
     /// </summary>
     public string RemoteOriginatedUrl { get; set; } = "https://*:38669";
 
+    /// <summary>
+    /// Implements <see cref="JsonSerializable.CheckValidity(out string)"/>.
+    /// </summary>
+    public override bool CheckValidity(out string message)
+    {
+        if (DatabaseKind == DatabaseKind.None)
+        {
+            message = $"Invalid {nameof(DatabaseKind)} is mandatory";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(DatabaseConnection))
+        {
+            message = $"{nameof(DatabaseConnection)} is mandatory";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(RemoteTerminatedUrl) && string.IsNullOrWhiteSpace(RemoteOriginatedUrl))
+        {
+            message = $"{nameof(RemoteTerminatedUrl)} and {nameof(RemoteOriginatedUrl)} both undefined";
+            return false;
+        }
+
+        message = "";
+        return true;
+    }
 }
