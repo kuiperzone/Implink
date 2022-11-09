@@ -66,14 +66,14 @@ public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientP
     string? UserAgent { get; }
 
     /// <summary>
-    /// Gets the maximum number of characters post text. Messages longer than this will be truncated.
+    /// Gets the maximum number of characters to permit in the post text. Messages longer than this will be truncated.
     /// A value of 0 or less does nothing.
     /// </summary>
     int MaxText { get; }
 
     /// <summary>
-    /// Gets a maximum request rate in requests per minute. It applies per client. Requests above this rate will
-    /// return a 429 error. A value of zero or less disables throttling. Advisable to specify a positive value
+    /// Gets a maximum request rate in terms of requests per minute. It applies per client. Requests above this rate
+    /// will return a 429 error. A value of zero or less disables throttling. Advisable to specify a positive value
     /// for remote originated server side. On the remote terminated side, this will prevent gateway from flooding
     /// destination.
     /// </summary>
@@ -92,7 +92,7 @@ public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientP
 
     /// <summary>
     /// Disables SSL validation, where supported (typically only for IMP protocols). IMPORTANT. The value
-    /// should invariably be set to false. Used primarily for testing.
+    /// should invariably be set to false. Used primarily for testing. The default is false.
     /// </summary>
     bool DisableSslValidation { get; }
 

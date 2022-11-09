@@ -64,6 +64,7 @@ class Program
                 Logger.Global.AddSink(new ConsoleSink());
 #endif
                 var settings = new AppSettings(conf);
+                Logger.Global.Threshold = settings.LoggingThreshold;
                 Logger.Global.Write(SeverityLevel.Notice, AppInfo.AppName + " starting");
                 Logger.Global.Write(SeverityLevel.Info, $"args={parser}");
 

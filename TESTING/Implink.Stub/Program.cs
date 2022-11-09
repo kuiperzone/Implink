@@ -142,30 +142,32 @@ class Program
         using var client = new ImpHttpClient(profile, true);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (no Category)");
-        var sub = CreateSubmit(false);
+        var sub = CreateSubmit(rt, false);
         result += AssertOK(client.SubmitPostRequest(sub, out SubmitResponse resp), resp);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (with Category)");
-        sub = CreateSubmit(true);
+        sub = CreateSubmit(rt, true);
         result += AssertOK(client.SubmitPostRequest(sub, out resp), resp);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (with MsgId)");
-        sub = CreateSubmit(false, "MSG1234567890");
+        sub = CreateSubmit(rt, false, "MSG1234567890");
         result += AssertOK(client.SubmitPostRequest(sub, out resp), resp, "MSG1234567890");
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid name)");
-        sub = CreateSubmit(false);
+        sub = CreateSubmit(rt, false);
         sub.GroupName = "InvalidName";
+        sub.UserName = "InvalidName";
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid category)");
-        sub = CreateSubmit(true);
+        sub = CreateSubmit(rt, true);
         sub.Category = "InvalidCategory";
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid authentication)");
-        sub = CreateSubmit(false);
+        sub = CreateSubmit(rt, false);
         sub.GroupName = AuthFailNameId;
+        sub.UserName = AuthFailNameId;
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.Unauthorized, resp);
 
         return result;
@@ -217,12 +219,12 @@ class Program
     private static void WriteRoutes(bool rt)
     {
         var addr = RemoteUrl;
-        var fname = "./RTRoute.json";
+        var fname = "./RtRoute.json";
 
         if (!rt)
         {
             addr = LocalUrl;
-            fname = "./RORoute.json";
+            fname = "./RoRoute.json";
         }
 
         var list = new List<ClientProfile>();
@@ -242,6 +244,7 @@ class Program
     {
         var p = new ClientProfile();
         p.BaseAddress = addr;
+
         p.NameId = hasCategory ? TestNameWithCatId : TestNameId;
         p.Categories = hasCategory ? TestCategory : null;
 
@@ -256,14 +259,14 @@ class Program
         return p;
     }
 
-    private static SubmitPost CreateSubmit(bool hasCategory, string? msgId = null)
+    private static SubmitPost CreateSubmit(bool rt, bool hasCategory, string? msgId = null)
     {
         var s = new SubmitPost();
-        s.GroupName = hasCategory ? TestNameWithCatId : TestNameId;
+        var name = hasCategory ? TestNameWithCatId : TestNameId;;
+        s.GroupName = name;
+        s.UserName = name;
         s.Category = hasCategory ? TestCategory : null;
         s.MsgId = msgId;
-
-        s.UserName = "TestUser";
         s.Text = "Test message";
 
         return s;
@@ -293,7 +296,7 @@ class Program
         var info = new ProcessStartInfo
         {
             FileName = "Implink.Gateway",
-            Arguments = "--forwardWait --fileDatabase",
+            Arguments = "--forwardWait --directory=./",
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

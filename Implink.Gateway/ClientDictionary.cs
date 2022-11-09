@@ -125,12 +125,16 @@ public class ClientDictionary : IDisposable
     public bool Reload(IEnumerable<IReadOnlyClientProfile> profiles)
     {
         var pn = IsRemoteTerminated ? "RT" : "RO";
+
+        Logger.Global.Debug($"Reload profiles {pn}");
         var newDictionary = new Dictionary<string, IReadOnlyClientProfile>(StringComparer.InvariantCultureIgnoreCase);
 
         foreach (var item in profiles)
         {
             if (item.Enabled)
             {
+                Logger.Global.Debug($"Candidate: {item.GetKey()}");
+
                 if (string.IsNullOrWhiteSpace(item.NameId))
                 {
                     Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile)}.{nameof(ClientProfile.NameId)} empty for {pn} profile");
@@ -148,6 +152,10 @@ public class ClientDictionary : IDisposable
                     Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile.NameId)} and {nameof(ClientProfile.BaseAddress)} combination not unique for {pn} {item.NameId}");
                 }
             }
+            else
+            {
+                Logger.Global.Write(SeverityLevel.Warning, $"{pn} profile {item.NameId} is disabled");
+            }
         }
 
         bool modified = false;
@@ -162,6 +170,7 @@ public class ClientDictionary : IDisposable
 
                 if (!newDictionary.TryGetValue(key, out IReadOnlyClientProfile? newProfile) || !newProfile.Equals(oldProfile))
                 {
+                    Logger.Global.Debug($"Removing: {key}");
                     oldContainer.Dispose();
 
                     _keyed.Remove(key);
@@ -176,6 +185,7 @@ public class ClientDictionary : IDisposable
             {
                 try
                 {
+                    Logger.Global.Debug($"Adding: {item.GetKey()}");
                     modified |= AddNoSync(item);
                 }
                 catch (Exception e)
@@ -221,6 +231,7 @@ public class ClientDictionary : IDisposable
     private ClientContainer[] GetNoSync(string? nameId)
     {
         Logger.Global.Debug("Find: " + nameId);
+        Logger.Global.Debug("Dictionary count: " + _named.Count);
 
         if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<ClientContainer>? temp))
         {
@@ -228,6 +239,7 @@ public class ClientDictionary : IDisposable
             return temp.ToArray();
         }
 
+        Logger.Global.Debug("Not found");
         return Array.Empty<ClientContainer>();
     }
 

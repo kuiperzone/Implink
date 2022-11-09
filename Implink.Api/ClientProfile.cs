@@ -73,7 +73,7 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.Enabled"/> and provides a setter.
     /// </summary>
-    public bool Enabled { get; set; }
+    public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.DisableSslValidation"/> and provides a setter.

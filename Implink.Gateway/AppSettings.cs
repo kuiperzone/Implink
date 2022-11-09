@@ -19,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 using KuiperZone.Implink.Api;
+using KuiperZone.Utility.Yaal;
 
 namespace KuiperZone.Implink.Gateway;
 
@@ -28,12 +29,10 @@ namespace KuiperZone.Implink.Gateway;
 public class AppSettings : Jsonizable, IReadOnlyAppSettings
 {
     /// <summary>
-    /// Default constructor. The constructor will look in the environment for a
-    /// variable of name "IMPLINK_DatabaseConnection" for the value.
+    /// Default constructor.
     /// </summary>
     public AppSettings()
     {
-        DatabaseConnection = GetEnvironmentConnection();
     }
 
     /// <summary>
@@ -43,6 +42,7 @@ public class AppSettings : Jsonizable, IReadOnlyAppSettings
     /// </summary>
     public AppSettings(IConfiguration conf)
     {
+        LoggingThreshold = Enum.Parse<SeverityLevel>(conf[nameof(LoggingThreshold)]?.Trim() ?? "", true);
         DatabaseKind = Enum.Parse<DatabaseKind>(conf[nameof(DatabaseKind)]?.Trim() ?? "", true);
         DatabaseConnection = conf[nameof(DatabaseConnection)]?.Trim() ?? "";
         DatabaseRefresh = TimeSpan.FromSeconds(conf.GetValue<int>(nameof(DatabaseRefresh), 60));
@@ -56,6 +56,11 @@ public class AppSettings : Jsonizable, IReadOnlyAppSettings
             DatabaseConnection = GetEnvironmentConnection();
         }
     }
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyAppSettings.LoggingThreshold"/> and provides a setter.
+    /// </summary>
+    public SeverityLevel LoggingThreshold { get; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyAppSettings.DatabaseKind"/> and provides a setter.

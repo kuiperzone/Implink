@@ -328,12 +328,6 @@ public class GatewayApp : IDisposable, IAsyncDisposable
                 }
             }
 
-            if (count == 0)
-            {
-                response.ErrorReason = "No client for " + nameId;
-                return (int)HttpStatusCode.BadRequest;
-            }
-
             if (code != (int)HttpStatusCode.OK)
             {
                 if (errors.Count == 1)
@@ -346,6 +340,12 @@ public class GatewayApp : IDisposable, IAsyncDisposable
                     var success = count - errors.Count;
                     response.ErrorReason = success + " of " + clients.Length + " succeeded: " + string.Join(", ", errors);
                 }
+            }
+            else
+            if (count == 0)
+            {
+                response.ErrorReason = "No client for " + nameId;
+                return (int)HttpStatusCode.BadRequest;
             }
 
             return code;

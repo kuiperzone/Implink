@@ -18,6 +18,8 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using KuiperZone.Utility.Yaal;
+
 namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
@@ -25,6 +27,11 @@ namespace KuiperZone.Implink.Gateway;
 /// </summary>
 public interface IReadOnlyAppSettings
 {
+    /// <summary>
+    /// Gets the logging threshold.
+    /// </summary>
+    SeverityLevel LoggingThreshold { get; }
+
     /// <summary>
     /// Gets the database technology kind.
     /// </summary>
