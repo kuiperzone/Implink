@@ -23,7 +23,7 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// A base class for request body content.
 /// </summary>
-public abstract class RequestMessage : JsonSerializable, IValidity
+public abstract class RequestMessage : Jsonizable, IValidity
 {
 
 }

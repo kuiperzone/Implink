@@ -33,7 +33,7 @@ namespace KuiperZone.Implink.Gateway;
 /// Database access which internally employs Dapper and supports MySql and PostgreSql.
 /// Additionally, allows for "file database" for testing purposes.
 /// </summary>
-public sealed class RouteDatabase : IDisposable
+public sealed class ProfileDatabase : IDisposable
 {
     private readonly string? _filename;
     private readonly IDbConnection? _sqlConnection;
@@ -43,12 +43,12 @@ public sealed class RouteDatabase : IDisposable
     /// </summary>
     /// <exception cref="ArgumentException">Invalid kind or connection</exception>
     /// <exception cref="DirectoryNotFoundException">Invalid directory</exception>
-    public RouteDatabase(DatabaseKind kind, string connection, bool remoteTerminated)
+    public ProfileDatabase(DatabaseKind kind, string connection, bool remoteTerminated)
     {
         Kind = kind;
         Connection = connection;
         IsRemoteTerminated = remoteTerminated;
-        TableName = IsRemoteTerminated ? "RTRoutes" : "RORoutes";
+        TableName = IsRemoteTerminated ? "RtRoute" : "RoRoute";
 
         if (string.IsNullOrEmpty(Connection))
         {
@@ -67,12 +67,12 @@ public sealed class RouteDatabase : IDisposable
             _filename = Path.Combine(info.Directory.FullName, TableName + ".json");
         }
         else
-        if (Kind == DatabaseKind.File)
+        if (Kind == DatabaseKind.MySQL)
         {
             _sqlConnection = new SqlConnection(connection);
         }
         else
-        if (Kind == DatabaseKind.File)
+        if (Kind == DatabaseKind.Postgres)
         {
             _sqlConnection = new NpgsqlConnection(connection);
         }

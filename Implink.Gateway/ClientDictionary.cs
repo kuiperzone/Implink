@@ -85,13 +85,13 @@ public class ClientDictionary : IDisposable
     }
 
     /// <summary>
-    /// Gets the clients with matching name. If the client has categories, then "category" must be one of those.
+    /// Gets the clients with matching name.
     /// </summary>
-    public ClientContainer[] Get(string? nameId, string? category)
+    public ClientContainer[] Get(string? nameId)
     {
         lock (_syncObj)
         {
-            return GetNoSync(nameId, category);
+            return GetNoSync(nameId);
         }
     }
 
@@ -120,24 +120,33 @@ public class ClientDictionary : IDisposable
 
     /// <summary>
     /// Loads clients for given profiles. Existing clients with unchanged profile are maintained.
-    /// The result is true if client list is modified.
+    /// The result is true if client list is modified. Note that disables profiles are ignored.
     /// </summary>
     public bool Reload(IEnumerable<IReadOnlyClientProfile> profiles)
     {
+        var pn = IsRemoteTerminated ? "RT" : "RO";
         var newDictionary = new Dictionary<string, IReadOnlyClientProfile>(StringComparer.InvariantCultureIgnoreCase);
 
         foreach (var item in profiles)
         {
-            if (!string.IsNullOrWhiteSpace(item.NameId))
+            if (item.Enabled)
             {
+                if (string.IsNullOrWhiteSpace(item.NameId))
+                {
+                    Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile)}.{nameof(ClientProfile.NameId)} empty for {pn} profile");
+                    continue;
+                }
+
+                if (!item.CheckValidity(out string msg))
+                {
+                    Logger.Global.Write(SeverityLevel.Warning, $"{pn} profile {item.NameId} invalid: {msg}");
+                    continue;
+                }
+
                 if (!newDictionary.TryAdd(item.GetKey(), item))
                 {
-                    Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile.NameId)} and {nameof(ClientProfile.BaseAddress)} combination not unique for {item.NameId}");
+                    Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile.NameId)} and {nameof(ClientProfile.BaseAddress)} combination not unique for {pn} {item.NameId}");
                 }
-            }
-            else
-            {
-                Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile)}.{nameof(ClientProfile.NameId)} is mandatory (ignored)");
             }
         }
 
@@ -209,28 +218,14 @@ public class ClientDictionary : IDisposable
         return !string.IsNullOrEmpty(nameId) && _named.ContainsKey(nameId);
     }
 
-    private ClientContainer[] GetNoSync(string? nameId, string? category)
+    private ClientContainer[] GetNoSync(string? nameId)
     {
-        Logger.Global.Debug("Find: " + nameId + " / " + category);
+        Logger.Global.Debug("Find: " + nameId);
 
-        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<ClientContainer>? temp1))
+        if (!string.IsNullOrEmpty(nameId) && _named.TryGetValue(nameId, out List<ClientContainer>? temp))
         {
-            Logger.Global.Debug($"Found {temp1.Count}: " + nameId);
-
-            var temp2 = new List<ClientContainer>(temp1.Count);
-
-            foreach (var item in temp1)
-            {
-                Logger.Global.Debug(item.Client.Profile.ToString());
-
-                if (item.Client.Categories.Count == 0 || (item.Client.Categories.Contains(category ?? "")))
-                {
-                    Logger.Global.Debug($"Accept");
-                    temp2.Add(item);
-                }
-            }
-
-            return temp2.ToArray();
+            Logger.Global.Debug($"Found {temp.Count} clients for " + nameId);
+            return temp.ToArray();
         }
 
         return Array.Empty<ClientContainer>();

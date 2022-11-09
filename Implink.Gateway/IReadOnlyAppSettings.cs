@@ -31,7 +31,8 @@ public interface IReadOnlyAppSettings
     DatabaseKind DatabaseKind { get; }
 
     /// <summary>
-    /// Gets the database connection. For "file" kind, this is a path to a directory.
+    /// Gets the database connection. For <see cref="DatabaseKind.File"/>, this is a path to a directory.
+    /// server=server;user=user;database=db;password=*****;
     /// </summary>
     string DatabaseConnection { get; }
 

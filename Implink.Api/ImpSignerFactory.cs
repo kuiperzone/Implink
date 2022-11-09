@@ -30,6 +30,6 @@ public class ImpSignerFactory : ISignerFactory
     /// </summary>
     public IHttpSigner Create(ClientApi client)
     {
-        return new ImpSigner(new ImpKeys(client));
+        return new ImpSigner(new ImpSecret(client));
     }
 }

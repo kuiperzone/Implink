@@ -40,7 +40,6 @@ class Program
     private const string TestNameWithCatId = "TestNameWithCatId";
     private const string TestCategory = "TestCategory";
 
-    private static bool StartImplink;
     private static volatile bool v_impStarted;
 
     // REFERENCE
@@ -86,22 +85,19 @@ class Program
 
                 // Remote server verifies athentication
                 WriteRoutes(true);
-                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpKeys(CreateImpProfile(RemoteUrl, true, false)));
+                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpSecret(CreateImpProfile(RemoteUrl, true, false)));
 
                 // Local on LAN, so no authentication
                 WriteRoutes(false);
                 using var localServer = new ImpServer(LocalUrl, false);
 
-                if (StartImplink)
-                {
-                    Logger.Global.Write("Starting Implink");
-                    impThread = new(StartGateway);
-                    impThread.Start(parser);
+                Logger.Global.Write("Starting Implink");
+                impThread = new(StartGateway);
+                impThread.Start(parser);
 
-                    if (!SpinWait.SpinUntil(() => { return v_impStarted; }, 2000))
-                    {
-                        throw new InvalidOperationException("Failed to start Implink");
-                    }
+                if (!SpinWait.SpinUntil(() => { return v_impStarted; }, 2000))
+                {
+                    throw new InvalidOperationException("Failed to start Implink");
                 }
 
                 if (!string.IsNullOrEmpty(settings.RemoteTerminatedUrl))
@@ -159,7 +155,7 @@ class Program
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid name)");
         sub = CreateSubmit(false);
-        sub.NameId = "InvalidName";
+        sub.GroupName = "InvalidName";
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid category)");
@@ -169,7 +165,7 @@ class Program
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid authentication)");
         sub = CreateSubmit(false);
-        sub.NameId = AuthFailNameId;
+        sub.GroupName = AuthFailNameId;
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.Unauthorized, resp);
 
         return result;
@@ -221,12 +217,12 @@ class Program
     private static void WriteRoutes(bool rt)
     {
         var addr = RemoteUrl;
-        var fname = "./RTRoutes.json";
+        var fname = "./RTRoute.json";
 
         if (!rt)
         {
             addr = LocalUrl;
-            fname = "./RORoutes.json";
+            fname = "./RORoute.json";
         }
 
         var list = new List<ClientProfile>();
@@ -235,7 +231,7 @@ class Program
 
         var temp = CreateImpProfile(addr, rt, false);
         temp.NameId = AuthFailNameId;
-        temp.Authentication = $"PRIVATE=123ABC,PUBLIC=321EFG";
+        temp.Authentication = $"SECRET=123ABC";
         list.Add(temp);
 
         var s = JsonSerializer.Serialize(list.ToArray());
@@ -253,7 +249,7 @@ class Program
         p.DisableSslValidation = true;
 
         // Unique authentication based on values
-        p.Authentication = $"PRIVATE=123{rt.GetHashCode()},PUBLIC=321{rt.GetHashCode()}";
+        p.Authentication = $"SECRET=123{rt.GetHashCode()}";
 
         p.ApiKind = ClientFactory.ImpV1;
         p.UserAgent = "Implink";
@@ -263,7 +259,7 @@ class Program
     private static SubmitPost CreateSubmit(bool hasCategory, string? msgId = null)
     {
         var s = new SubmitPost();
-        s.NameId = hasCategory ? TestNameWithCatId : TestNameId;
+        s.GroupName = hasCategory ? TestNameWithCatId : TestNameId;
         s.Category = hasCategory ? TestCategory : null;
         s.MsgId = msgId;
 
@@ -280,7 +276,6 @@ class Program
             Console.WriteLine("Usage:");
             Console.WriteLine("    -h, --help: Help information");
             Console.WriteLine("    -v, --version: Version information");
-            Console.WriteLine("    --start: Start Implink platform");
             return false;
         }
 
@@ -290,7 +285,6 @@ class Program
             return false;
         }
 
-        StartImplink = parser.GetOrDefault("start", false);
         return true;
     }
 

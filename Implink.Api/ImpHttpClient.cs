@@ -58,6 +58,6 @@ public sealed class ImpHttpClient : HttpClientApi
     /// </summary>
     protected override SubmitResponse ToSubmitResponse(string body)
     {
-        return JsonSerializable.Deserialize<SubmitResponse>(body);
+        return Jsonizable.Deserialize<SubmitResponse>(body);
     }
 }

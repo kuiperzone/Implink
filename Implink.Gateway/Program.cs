@@ -27,7 +27,7 @@ namespace KuiperZone.Implink.Gateway;
 class Program
 {
     private static bool? ForwardWait;
-    private static bool? FileDatabase;
+    private static string? ProfileDirectory;
 
     // REFERENCE
     // ASP WebApp-application:
@@ -69,13 +69,15 @@ class Program
 
                 if (ForwardWait.HasValue)
                 {
+                    Logger.Global.Write(SeverityLevel.Info, $"Force forward wait={ForwardWait.Value}");
                     settings.ForwardWait = ForwardWait.Value;
                 }
 
-                if (FileDatabase.GetValueOrDefault())
+                if (!string.IsNullOrEmpty(ProfileDirectory))
                 {
+                    Logger.Global.Write(SeverityLevel.Info, $"Force file directory={ProfileDirectory}");
                     settings.DatabaseKind = DatabaseKind.File;
-                    settings.DatabaseConnection = "./";
+                    settings.DatabaseConnection = ProfileDirectory;
                 }
 
                 Logger.Global.Write(SeverityLevel.Info, $"settings={settings}");
@@ -117,12 +119,14 @@ class Program
             Console.WriteLine("    -h, --help: Help information");
             Console.WriteLine("    -v, --version: Version information");
             Console.WriteLine("    -w, --forwardWait: Override ForwardWait (test only)");
-            Console.WriteLine("    -d, --fileDatabase: Force local file datavbase (test only");
+            Console.WriteLine("    -d, --directory=dir: Override database connection with file directory (test only)");
             return false;
         }
 
         if (parser.GetOrDefault("v", false) || parser.GetOrDefault("version", false))
         {
+            Console.Write(AppInfo.AssemblyName);
+            Console.Write(" ");
             Console.WriteLine(AppInfo.Version);
             return false;
         }
@@ -132,10 +136,7 @@ class Program
             ForwardWait = parser.GetOrDefault("w", false) || parser.GetOrDefault("forwardWait", false);
         }
 
-        if (parser.GetOrDefault("d", "") != "" || parser.GetOrDefault("fileDatabase", "") != "")
-        {
-            FileDatabase = parser.GetOrDefault("d", false) || parser.GetOrDefault("fileDatabase", false);
-        }
+        ProfileDirectory = parser["d"] ?? parser["directory"];
 
         return true;
     }

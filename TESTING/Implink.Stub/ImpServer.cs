@@ -37,7 +37,7 @@ public class ImpServer : IDisposable
     /// <summary>
     /// Constructor. Does not dispose of app or database.
     /// </summary>
-    public ImpServer(string url, bool isRemote, ImpKeys? keys = null)
+    public ImpServer(string url, bool isRemote, ImpSecret? keys = null)
     {
         IsRemote = isRemote;
         ServerUrl = url;
@@ -77,7 +77,7 @@ public class ImpServer : IDisposable
     /// <summary>
     /// Gets authentication keys.
     /// </summary>
-    public ImpKeys? Keys { get; }
+    public ImpSecret? Keys { get; }
 
     /// <summary>
     /// Implements dispose.
@@ -121,7 +121,7 @@ public class ImpServer : IDisposable
 
         if (authFailure == null)
         {
-            var submit = JsonSerializable.Deserialize<SubmitPost>(body);
+            var submit = Jsonizable.Deserialize<SubmitPost>(body);
             response.MsgId = submit.MsgId;
 
             if (string.IsNullOrEmpty(submit.Text))

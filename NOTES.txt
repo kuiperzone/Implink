@@ -1,6 +1,45 @@
-To do:
+CREATE DATABASE Implink;
+CREATE DATABASE ImpTest;
+CREATE USER 'implink'@localhost IDENTIFIED BY 'imp77';
+CREATE USER 'admin'@localhost IDENTIFIED BY 'imp77';
 
-REPLACE illegal chars in Yaal file naming
+GRANT ALL PRIVILEGES ON *.* TO 'admin'@localhost;
+GRANT SELECT ON *.* TO 'implink'@localhost;
 
-Set MsgId in SubmitPost and SubmitResponse
-SubmitResponse -> SubmitResp
+FLUSH PRIVILEGES;
+
+use ImpTest;
+
+CREATE OR REPLACE TABLE RoRoute
+(
+    NameId VARCHAR(64) NOT NULL,
+    BaseAddress VARCHAR(128) NOT NULL,
+
+    ApiKind VARCHAR(16),
+    Categories VARCHAR(64),
+    Authentication VARCHAR(128) NOT NULL,
+    UserAgent VARCHAR(24),
+    MaxText INT2,
+    ThrottleRate INT2,
+    Timeout INT4 DEFAULT 15000,
+
+    Enabled BOOLEAN DEFAULT TRUE,
+    DisableSslValidation BOOLEAN DEFAULT FALSE,
+
+    PRIMARY KEY(NameId,BaseAddress)
+
+) DEFAULT CHARSET='utf8' DEFAULT COLLATE='utf8_general_ci';
+
+
+
+MARIA DB
+
+Ensure selinux to permissive
+
+Start:
+sudo systemctl start mariadb
+systemctl status mariadb
+sudo systemctl stop mariadb
+
+Install:
+https://unixcop.com/install-mariadb-fedora/

@@ -28,14 +28,14 @@ namespace KuiperZone.Implink.Api;
 /// </summary>
 public class ImpSigner : IHttpSigner
 {
-    private readonly ImpKeys _keys;
+    private readonly ImpSecret _secret;
 
     /// <summary>
     /// Constructor with key instance.
     /// </summary>
-    public ImpSigner(ImpKeys keys)
+    public ImpSigner(ImpSecret secret)
     {
-        _keys = keys;
+        _secret = secret;
     }
 
     /// <summary>
@@ -43,11 +43,6 @@ public class ImpSigner : IHttpSigner
     /// </summary>
     public void Add(HttpRequestMessage request)
     {
-        string nonce = GetNonce();
-
-        // Future proof - a version ID
-        request.Headers.Add("IMP_API", ClientFactory.ImpV1);
-
         string? body = null;
 
         if (request.Content != null)
@@ -55,14 +50,17 @@ public class ImpSigner : IHttpSigner
             body = new StreamReader(request.Content.ReadAsStream(), Encoding.UTF8, false).ReadToEnd();
         }
 
-        var sign = _keys.GetSignature(nonce, body, out string timestamp);
-        request.Headers.Add(ImpKeys.PUBLIC_KEY, _keys.Public);
-        request.Headers.Add(ImpKeys.NONCE_KEY, nonce);
-        request.Headers.Add(ImpKeys.SIGN_KEY, sign);
-        request.Headers.Add(ImpKeys.TIMESTAMP_KEY, timestamp);
+        string nonce = GenerateNonce();
+        var sign = _secret.GetSignature(nonce, body, out string timestamp);
+
+        // Future proof - a version ID
+        request.Headers.Add("IMP_API", ClientFactory.ImpV1);
+        request.Headers.Add(ImpSecret.NONCE_KEY, nonce);
+        request.Headers.Add(ImpSecret.TIMESTAMP_KEY, timestamp);
+        request.Headers.Add(ImpSecret.SIGN_KEY, sign);
     }
 
-    private static string GetNonce(int count = 16)
+    private static string GenerateNonce(int count = 16)
     {
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(count));
     }

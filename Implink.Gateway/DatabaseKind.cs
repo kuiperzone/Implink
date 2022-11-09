@@ -31,7 +31,7 @@ public enum DatabaseKind
     None = 0,
 
     /// <summary>
-    /// MySQL compatible database.
+    /// MySQL compatible database (i.e. MariaDB).
     /// </summary>
     MySQL,
 

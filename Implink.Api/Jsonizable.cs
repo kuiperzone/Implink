@@ -26,7 +26,7 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// A base class for all JSON serializable data for convenience and to enforce consistency.
 /// </summary>
-public abstract class JsonSerializable : IValidity
+public abstract class Jsonizable : IValidity
 {
     /// <summary>
     /// Common JsonSerializerOptions value.
@@ -36,9 +36,9 @@ public abstract class JsonSerializable : IValidity
             WriteIndented = false, PropertyNameCaseInsensitive = true };
 
     /// <summary>
-    /// Deserialize using <see cref="JsonSerializable"/>.
+    /// Deserialize using <see cref="Jsonizable"/>.
     /// </summary>
-    public static T Deserialize<T>(string? s) where T : JsonSerializable, new()
+    public static T Deserialize<T>(string? s) where T : Jsonizable, new()
     {
         if (string.IsNullOrWhiteSpace(s))
         {

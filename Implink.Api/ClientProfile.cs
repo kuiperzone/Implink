@@ -23,7 +23,7 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// A serializable class which implements <see cref="IReadOnlyClientProfile"/> and provides setters.
 /// </summary>
-public class ClientProfile : JsonSerializable, IReadOnlyClientProfile, IValidity, IEquatable<IReadOnlyClientProfile>
+public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEquatable<IReadOnlyClientProfile>
 {
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.NameId"/> and provides a setter.
@@ -31,9 +31,9 @@ public class ClientProfile : JsonSerializable, IReadOnlyClientProfile, IValidity
     public string NameId { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.Categories"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.BaseAddress"/> and provides a setter.
     /// </summary>
-    public string? Categories { get; set; }
+    public string BaseAddress { get; set; } = "";
 
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.ApiKind"/> and provides a setter.
@@ -41,14 +41,9 @@ public class ClientProfile : JsonSerializable, IReadOnlyClientProfile, IValidity
     public string ApiKind { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.DisableSslValidation"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.Categories"/> and provides a setter.
     /// </summary>
-    public bool DisableSslValidation { get; set; }
-
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.BaseAddress"/> and provides a setter.
-    /// </summary>
-    public string BaseAddress { get; set; } = "";
+    public string? Categories { get; set; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.Authentication"/> and provides a setter.
@@ -76,6 +71,16 @@ public class ClientProfile : JsonSerializable, IReadOnlyClientProfile, IValidity
     public int Timeout { get; set; } = 15000;
 
     /// <summary>
+    /// Implements <see cref="IReadOnlyClientProfile.Enabled"/> and provides a setter.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyClientProfile.DisableSslValidation"/> and provides a setter.
+    /// </summary>
+    public bool DisableSslValidation { get; set; }
+
+    /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.GetKey"/>.
     /// </summary>
     public string GetKey()
@@ -85,7 +90,7 @@ public class ClientProfile : JsonSerializable, IReadOnlyClientProfile, IValidity
     }
 
     /// <summary>
-    /// Implements <see cref="JsonSerializable.CheckValidity(out string)"/>.
+    /// Implements <see cref="Jsonizable.CheckValidity(out string)"/>.
     /// </summary>
     public override bool CheckValidity(out string message)
     {
@@ -127,12 +132,13 @@ public class ClientProfile : JsonSerializable, IReadOnlyClientProfile, IValidity
             NameId == obj.NameId &&
             Categories == obj.Categories &&
             ApiKind == obj.ApiKind &&
-            DisableSslValidation == obj.DisableSslValidation &&
             BaseAddress == obj.BaseAddress &&
             Authentication == obj.Authentication &&
             UserAgent == obj.UserAgent &&
             ThrottleRate == obj.ThrottleRate &&
-            Timeout == obj.Timeout)
+            Timeout == obj.Timeout &&
+            Enabled == obj.Enabled &&
+            DisableSslValidation == obj.DisableSslValidation)
         {
             return true;
         }

@@ -26,28 +26,10 @@ namespace KuiperZone.Implink.Api;
 public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientProfile>
 {
     /// <summary>
-    /// Gets the mandatory routing name (case insensitive).
+    /// Gets the mandatory routing name (case insensitive). For RT profiles, this is a "group name".
+    /// For RO profiles, it is the username and corresponds to incoming <see cref="SubmitPost.UserName"/>.
     /// </summary>
     string NameId { get; }
-
-    /// <summary>
-    /// Gets the optional routing categories. It may contain a comma separated case insensitive list of category
-    /// names. If an incoming submission matches <see cref="NameId"/>, it must also match one of the values in
-    /// <see cref="Categories"/> if not empty.
-    /// </summary>
-    string? Categories { get; }
-
-    /// <summary>
-    /// Gets the mandatory API technology kind. This is a string containing a single supported value,
-    /// i.e. "Twitter" or "IMPv1".
-    /// </summary>
-    string ApiKind { get; }
-
-    /// <summary>
-    /// Disables SSL validation, where supported (typically only for IMP protocols). IMPORTANT. The value
-    /// should invariably be set to false. Used primarily for testing.
-    /// </summary>
-    bool DisableSslValidation { get; }
 
     /// <summary>
     /// Gets the mandatory API base URL. The value must begin with "https://" or "http://". For outbound, this would
@@ -58,10 +40,23 @@ public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientP
     string BaseAddress { get; }
 
     /// <summary>
-    /// Gets the vendor specific authentication properties. The value is a key-value sequence seperated by comma,
-    /// i.e. of form "Key1=Value1,Key2=Value2". The caller should assume keys and values are case-sensitive. For IMPv1,
-    /// PRIVATE and PUBLIC key-values must be given, specifying a minimum of 12 random characters each
-    /// (take care to exclude comma). Example: "PRIVATE=Fyhf$34hjfTh94,PUBLIC=KvBd73!sdL84B".
+    /// Gets the mandatory API technology kind. This is a string containing a single supported value,
+    /// i.e. "Twitter" or "IMPv1".
+    /// </summary>
+    string ApiKind { get; }
+
+    /// <summary>
+    /// Gets the optional routing categories. It may contain a comma separated case insensitive list of category
+    /// names. If an incoming submission matches <see cref="NameId"/>, it must also match one of the values in
+    /// <see cref="Categories"/> if not empty.
+    /// </summary>
+    string? Categories { get; }
+
+    /// <summary>
+    /// Gets the vendor specific authentication properties. The value is a key-value sequence seperated by
+    /// comma, i.e. of form "Key1=Value1,Key2=Value2". The caller should assume keys and values are case-sensitive.
+    /// For IMPv1, the "SECRET" value must be given, specifying a minimum of 12 random characters.
+    /// Example: "SECRET=Fyhf$34hjfTh94".
     /// </summary>
     string Authentication { get; }
 
@@ -90,7 +85,20 @@ public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientP
     int Timeout { get; }
 
     /// <summary>
-    /// Returns a unique key for the instance, formed from <see cref="NameId"/> and <see cref="BaseAddress"/>.
+    /// Gets whether this profile is enabled. This setting allows for profile to be disabled without deletion.
+    /// Default is true (enabled).
+    /// </summary>
+    bool Enabled { get; }
+
+    /// <summary>
+    /// Disables SSL validation, where supported (typically only for IMP protocols). IMPORTANT. The value
+    /// should invariably be set to false. Used primarily for testing.
+    /// </summary>
+    bool DisableSslValidation { get; }
+
+    /// <summary>
+    /// Returns a unique Id for the instance, formed from <see cref="NameId"/> and <see cref="BaseAddress"/> in
+    /// lowercase (invariant culture) and separated by "+". Ie. "nameid+baseaddress".
     /// </summary>
     string GetKey();
 

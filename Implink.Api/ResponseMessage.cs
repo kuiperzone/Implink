@@ -23,7 +23,7 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// A base class for response body content.
 /// </summary>
-public class ResponseMessage : JsonSerializable, IValidity
+public class ResponseMessage : Jsonizable, IValidity
 {
     /// <summary>
     /// Gets or sets an optional error reason message.
@@ -31,7 +31,7 @@ public class ResponseMessage : JsonSerializable, IValidity
     public string? ErrorReason { get; set; }
 
     /// <summary>
-    /// Implements <see cref="JsonSerializable.CheckValidity(out string)"/> but always returns true.
+    /// Implements <see cref="Jsonizable.CheckValidity(out string)"/> but always returns true.
     /// </summary>
     public override bool CheckValidity(out string message)
     {

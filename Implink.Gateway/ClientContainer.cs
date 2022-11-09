@@ -39,7 +39,7 @@ public class ClientContainer : IClientApi, IDisposable
 
         if (!remoteTerminated && Client.Profile.ApiKind == ClientFactory.ImpV1)
         {
-            AuthenticationKeys = new ImpKeys(client);
+            AuthenticationSecret = new ImpSecret(client);
         }
     }
 
@@ -70,9 +70,9 @@ public class ClientContainer : IClientApi, IDisposable
     public ClientApi Client { get; }
 
     /// <summary>
-    /// Gets IMP authentication keys.
+    /// Gets IMP authentication.
     /// </summary>
-    public ImpKeys? AuthenticationKeys { get; }
+    public ImpSecret? AuthenticationSecret { get; }
 
     /// <summary>
     /// Calls <see cref="IClientApi.SubmitPostRequest"/>, implements throttling and truncates message if too long.

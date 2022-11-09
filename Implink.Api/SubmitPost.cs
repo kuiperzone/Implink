@@ -37,7 +37,7 @@ public class SubmitPost : RequestMessage
     /// </summary>
     public SubmitPost(SubmitPost other)
     {
-        NameId = other.NameId;
+        GroupName = other.GroupName;
         UserName = other.UserName;
         Category = other.Category;
         MsgId = other.MsgId;
@@ -47,14 +47,14 @@ public class SubmitPost : RequestMessage
     }
 
     /// <summary>
-    /// Gets or sets the mandatory group ID.
+    /// Gets or sets the mandatory group name.
     /// </summary>
-    public string NameId { get; set; } = "";
+    public string GroupName { get; set; } = "";
 
     /// <summary>
     /// Get or sets the user name.
     /// </summary>
-    public string UserName { get; set; } = "Anonymous";
+    public string UserName { get; set; } = "";
 
     /// <summary>
     /// Gets or sets optional category name.
@@ -85,13 +85,13 @@ public class SubmitPost : RequestMessage
     public string? LinkUrl { get; set; }
 
     /// <summary>
-    /// Implements <see cref="JsonSerializable.CheckValidity(out string)"/>.
+    /// Implements <see cref="Jsonizable.CheckValidity(out string)"/>.
     /// </summary>
     public override bool CheckValidity(out string message)
     {
-        if (string.IsNullOrWhiteSpace(NameId) || NameId.Length > 64)
+        if (string.IsNullOrWhiteSpace(GroupName) || GroupName.Length > 64)
         {
-            message = $"{nameof(NameId)} undefined or invalid";
+            message = $"{nameof(GroupName)} undefined or invalid";
             return false;
         }
 

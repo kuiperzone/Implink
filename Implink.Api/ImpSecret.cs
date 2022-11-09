@@ -31,9 +31,9 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// Immutable class used in construction of IMP client and servers.
 /// </summary>
-public class ImpKeys
+public class ImpSecret
 {
-    private readonly byte[] _private;
+    private readonly byte[] _secret;
 
     /// <summary>
     /// The timestamp header key name.
@@ -46,62 +46,35 @@ public class ImpKeys
     public const string NONCE_KEY = "IMP_NONCE";
 
     /// <summary>
-    /// The IMP public header key name.
-    /// </summary>
-    public const string PUBLIC_KEY = "IMP_PUBLIC";
-
-    /// <summary>
     /// Gets the sign header key name.
     /// </summary>
     public const string SIGN_KEY = "IMP_SIGN";
 
-    /// <summary>
-    /// Default constructor. Authentication is disabled.
-    /// </summary>
-    public ImpKeys()
-    {
-        Public = "";
-        _private = Array.Empty<byte>();
-    }
 
     /// <summary>
-    /// Constructor with PUBLIC and PRIVATE values. Provided empty or null for both disables authentication.
+    /// Constructor with secret and delta seconds. Provided empty or null to disable authentication.
     /// </summary>
-    /// <exception cref="ArgumentException">Both PUBLIC and PRIVATE keys must be provided</exception>
-    public ImpKeys(string? pub, string? priv, int deltaSec = 30)
+    public ImpSecret(string? secret = null, int deltaSec = 30)
     {
-        if (string.IsNullOrEmpty(pub) != string.IsNullOrEmpty(priv))
-        {
-            throw new ArgumentException("Both PUBLIC and PRIVATE keys must be provided");
-        }
-
-        Public = pub ?? "";
-        _private = Encoding.UTF8.GetBytes(priv ?? "");
+        _secret = Encoding.UTF8.GetBytes(secret ?? "");
         AllowedDeltaSeconds = deltaSec;
     }
 
     /// <summary>
     /// Constructor with <see cref="IReadOnlyClientProfile"/> instance.
     /// </summary>
-    /// <exception cref="ArgumentException">Both PUBLIC and PRIVATE keys must be provided</exception>
-    public ImpKeys(IReadOnlyClientProfile profile, int deltaSec = 30)
-        : this(GetAuth(profile, out string priv), priv, deltaSec)
+    public ImpSecret(IReadOnlyClientProfile profile, int deltaSec = 30)
+        : this(GetAuth(profile, "SECRET"), deltaSec)
     {
     }
 
     /// <summary>
     /// Constructor with <see cref="ClientApi"/> instace.
     /// </summary>
-    /// <exception cref="ArgumentException">Both PUBLIC and PRIVATE keys must be provided</exception>
-    public ImpKeys(ClientApi client, int deltaSec = 30)
-        : this(GetAuth(client, "PUBLIC"), GetAuth(client, "PRIVATE"), deltaSec)
+    public ImpSecret(ClientApi client, int deltaSec = 30)
+        : this(GetAuth(client, "SECRET"), deltaSec)
     {
     }
-
-    /// <summary>
-    /// Gets the public key.
-    /// </summary>
-    public readonly string Public;
 
     /// <summary>
     /// Gets the maximum time delta a timetamp is allowed to differ from system time.
@@ -114,7 +87,7 @@ public class ImpKeys
     /// </summary>
     public bool IsAuthenticationEnabled
     {
-        get { return _private.Length != 0; }
+        get { return _secret.Length != 0; }
     }
 
     /// <summary>
@@ -135,9 +108,9 @@ public class ImpKeys
             {
                 long now = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds();
 
-                if (now - uxsec > AllowedDeltaSeconds || uxsec - now > AllowedDeltaSeconds)
+                if (Math.Abs(now - uxsec) > AllowedDeltaSeconds)
                 {
-                    return "Timestamp difference too large";
+                    return "Timestamp delta too large";
                 }
             }
 
@@ -159,14 +132,8 @@ public class ImpKeys
     {
         if (IsAuthenticationEnabled)
         {
-            // Do this before HMAC
-            if (GetHeader(headers, PUBLIC_KEY) != Public)
-            {
-                return "Authentication failed";
-            }
-
-            string timestamp = GetHeader(headers, TIMESTAMP_KEY);
             string nonce = GetHeader(headers, NONCE_KEY);
+            string timestamp = GetHeader(headers, TIMESTAMP_KEY);
             string sign = GetHeader(headers, SIGN_KEY);
             return Verify(sign, timestamp, nonce, body);
         }
@@ -204,14 +171,13 @@ public class ImpKeys
     {
         if (IsAuthenticationEnabled)
         {
-            // HMAC-SHA256(timestamp + nonce + PUBLIC + body, PRIVATE)
+            // HMAC-SHA256(timestamp + nonce + body)
             var prehash = new StringBuilder(1024);
             prehash.Append(timestamp);
             prehash.Append(nonce);
-            prehash.Append(Public);
             prehash.Append(body);
 
-            using (var hmac = new HMACSHA256(_private))
+            using (var hmac = new HMACSHA256(_secret))
             {
                 return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(prehash.ToString())));
             }
@@ -220,11 +186,9 @@ public class ImpKeys
         return "";
     }
 
-    private static string GetAuth(IReadOnlyClientProfile profile, out string priv)
+    private static string GetAuth(IReadOnlyClientProfile p, string key)
     {
-        var p = DictionaryParser.ToDictionary(profile.Authentication);
-        priv = p.GetValueOrDefault("PRIVATE", "");
-        return p.GetValueOrDefault("PUBLIC", "");
+        return DictionaryParser.ToDictionary(p.Authentication).GetValueOrDefault(key, "");
     }
 
     private static string GetAuth(ClientApi c, string key)

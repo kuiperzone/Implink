@@ -35,7 +35,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
     private readonly Thread? _thread;
     private readonly WebApplication _app;
     private readonly ClientDictionary _clients;
-    private readonly RouteDatabase _database;
+    private readonly ProfileDatabase _database;
     private volatile bool v_disposed;
 
     /// <summary>
@@ -229,7 +229,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
         var body = await reader.ReadToEndAsync();
         Logger.Global.Write(SeverityLevel.Info, body);
 
-        var submit = JsonSerializable.Deserialize<SubmitPost>(body);
+        var submit = Jsonizable.Deserialize<SubmitPost>(body);
 
         if (string.IsNullOrEmpty(submit.MsgId))
         {
@@ -251,98 +251,100 @@ public class GatewayApp : IDisposable, IAsyncDisposable
         SubmitPost submit, out SubmitResponse response)
     {
         response = new();
+        response.ErrorReason = "OK";
         response.MsgId = submit.MsgId;
 
         try
         {
-            if (string.IsNullOrWhiteSpace(submit.NameId))
+            if (!submit.CheckValidity(out string msg))
             {
-                response.ErrorReason = $"{nameof(SubmitPost)}.{nameof(SubmitPost.NameId)} undefined";
+                response.ErrorReason = msg;
                 return (int)HttpStatusCode.BadRequest;
             }
 
-            if (string.IsNullOrWhiteSpace(submit.Text))
-            {
-                response.ErrorReason = $"{nameof(SubmitPost)}.{nameof(SubmitPost.Text)} undefined";
-                return (int)HttpStatusCode.BadRequest;
-            }
+            var nameId = IsRemoteTerminated ? submit.GroupName : submit.UserName;
+            var clients = _clients.Get(nameId);
 
-            var clients = _clients.Get(submit.NameId, submit.Category);
-
-            if (clients.Length == 0)
-            {
-                response.ErrorReason = "No client for " + submit.NameId;
-                return (int)HttpStatusCode.BadRequest;
-            }
-
+            int count = 0;
             var code = (int)HttpStatusCode.OK;
-            response.ErrorReason = "OK";
-
             var errors = new List<string>();
 
             foreach (var item in clients)
             {
-                Logger.Global.Debug(item.Client.Profile.BaseAddress);
-
-                var authFailure = item.AuthenticationKeys?.Verify(headers, body);
-
-                if (authFailure != null)
+                if (item.Client.Categories.Count == 0 || (item.Client.Categories.Contains(submit.Category ?? "")))
                 {
-                    errors.Add(authFailure);
-                    Logger.Global.Debug(errors[^1]);
+                    Logger.Global.Debug($"Accept: {item.Client.Profile.GetKey()}");
 
-                    if (code == (int)HttpStatusCode.OK)
-                    {
-                        code = (int)HttpStatusCode.Unauthorized;
-                    }
-                }
-                else
-                if (item.Counter.IsThrottled(true))
-                {
-                    errors.Add(item.Client.Profile.ApiKind + ' ' + HttpStatusCode.TooManyRequests);
-                    Logger.Global.Debug(errors[^1]);
+                    var authFailure = item.AuthenticationSecret?.Verify(headers, body);
 
-                    if (code == (int)HttpStatusCode.OK)
+                    if (authFailure != null)
                     {
-                        code = (int)HttpStatusCode.TooManyRequests;
-                    }
-                }
-                else
-                if (Settings.ForwardWait)
-                {
-                    Logger.Global.Debug("Forward and wait for response");
-                    var tc = SubmitPostToClient(item.Client, submit, out SubmitResponse tr);
-
-                    if (tc != (int)HttpStatusCode.OK)
-                    {
-                        if (!string.IsNullOrEmpty(tr.ErrorReason))
-                        {
-                            errors.Add(tr.ErrorReason);
-                        }
+                        errors.Add(authFailure);
+                        Logger.Global.Debug(errors[^1]);
 
                         if (code == (int)HttpStatusCode.OK)
                         {
-                            code = tc;
+                            code = (int)HttpStatusCode.Unauthorized;
                         }
                     }
+                    else
+                    if (item.Counter.IsThrottled(true))
+                    {
+                        errors.Add(item.Client.Profile.ApiKind + ' ' + HttpStatusCode.TooManyRequests);
+                        Logger.Global.Debug(errors[^1]);
+
+                        if (code == (int)HttpStatusCode.OK)
+                        {
+                            code = (int)HttpStatusCode.TooManyRequests;
+                        }
+                    }
+                    else
+                    if (Settings.ForwardWait)
+                    {
+                        Logger.Global.Debug("Forward and wait for response");
+
+                        count += 1;
+                        var tc = SubmitPostToClient(item.Client, submit, out SubmitResponse tr);
+
+                        if (tc != (int)HttpStatusCode.OK)
+                        {
+                            if (!string.IsNullOrEmpty(tr.ErrorReason))
+                            {
+                                errors.Add(tr.ErrorReason);
+                            }
+
+                            if (code == (int)HttpStatusCode.OK)
+                            {
+                                code = tc;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Logger.Global.Debug("Queue for worker thread");
+                        count += 1;
+                        ThreadPool.QueueUserWorkItem(SubmitThread, Tuple.Create(item.Client, submit));
+                    }
                 }
-                else
-                {
-                    Logger.Global.Debug("Queue for worker thread");
-                    ThreadPool.QueueUserWorkItem(SubmitThread, Tuple.Create(item.Client, submit));
-                }
+            }
+
+            if (count == 0)
+            {
+                response.ErrorReason = "No client for " + nameId;
+                return (int)HttpStatusCode.BadRequest;
             }
 
             if (code != (int)HttpStatusCode.OK)
             {
-                if (clients.Length == 1)
+                if (errors.Count == 1)
                 {
-                    response.ErrorReason = string.Join(", ", errors);
+                    response.ErrorReason = errors[0];
                 }
                 else
                 {
                     // Combine responses
-                    response.ErrorReason = (clients.Length - errors.Count) + " of " + clients.Length + " succeeded: " + string.Join(", ", errors);
+                    var success = count - errors.Count;
+                    response.ErrorReason = success + " of " + clients.Length + " succeeded: " + string.Join(", ", errors);
                 }
             }
 
