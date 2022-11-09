@@ -26,8 +26,8 @@ namespace KuiperZone.Implink.Api;
 public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientProfile>
 {
     /// <summary>
-    /// Gets the mandatory routing name (case insensitive). For RT profiles, this is a "group name".
-    /// For RO profiles, it is the username and corresponds to incoming <see cref="SubmitPost.UserName"/>.
+    /// Gets the mandatory routing name (case insensitive). For RT profiles, it corresponds to incoming an
+    /// <see cref="SubmitPost.GroupName"/>. For RO profiles, it corresponds to <see cref="SubmitPost.UserName"/>.
     /// </summary>
     string NameId { get; }
 
