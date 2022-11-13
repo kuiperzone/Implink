@@ -23,66 +23,32 @@ using KuiperZone.Implink.Api.Thirdparty;
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Creates clients according to <see cref="IReadOnlyClientProfile.ApiKind"/>.
+/// Creates clients according to <see cref="IReadOnlyClientProfile.Api"/>.
 /// </summary>
 public static class ClientFactory
 {
     /// <summary>
-    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. IMP API.
+    /// Creates new remote terminated instance with given client profile. Note that only remote terminated
+    /// instances can be created.
     /// </summary>
-    public const string ImpV1 = "IMPv1";
-
-    /// <summary>
-    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Twitter.
-    /// </summary>
-    public const string Twitter = "Twitter";
-
-    /// <summary>
-    /// Valid <see cref="IReadOnlyClientProfile.ApiKind"/>. Facebook.
-    /// </summary>
-    public const string Facebook = "Facebook";
-
-    /// <summary>
-    /// Returns true if kind is a valid api name.
-    /// </summary>
-    public static bool IsValidApi(string? kind)
-    {
-        if (ImpV1.Equals(kind, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (Twitter.Equals(kind, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Creates new instance with given route profile.
-    /// </summary>
-    /// <exception cref="ArgumentException">Invalid ApiKind</exception>
+    /// <exception cref="ArgumentException">Invalid Api, or Endpoint</exception>
     public static ClientApi Create(IReadOnlyClientProfile profile)
     {
-        if (ImpV1.Equals(profile.ApiKind, StringComparison.OrdinalIgnoreCase))
+        if (profile.Endpoint != EndpointKind.Remote)
         {
-            return new ImpHttpClient(profile, true);
+            throw new ArgumentException($"{nameof(profile.Endpoint)} cannot be remote originated");
         }
 
-        if (Twitter.Equals(profile.ApiKind, StringComparison.OrdinalIgnoreCase))
+        switch (profile.Api)
         {
-            return new TwitterClient(profile);
-        }
+            case ApiKind.ImpV1:
+                return new ImpHttpClient(profile);
+            case ApiKind.Twitter:
+                return new TwitterClient(profile);
+            default:
+                throw new ArgumentException(
+                    $"Unknown or invalid {nameof(IReadOnlyClientProfile.Api)} {profile.Api} for route {profile.NameId}");
 
-        if (string.IsNullOrWhiteSpace(profile.ApiKind))
-        {
-        throw new ArgumentException(
-            $"Undefined {nameof(IReadOnlyClientProfile.ApiKind)} for route {profile.NameId}");
         }
-
-        throw new ArgumentException(
-            $"Invalid unknown {nameof(IReadOnlyClientProfile.ApiKind)} {profile.ApiKind} for route {profile.NameId}");
     }
 }

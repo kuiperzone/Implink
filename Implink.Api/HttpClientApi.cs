@@ -31,7 +31,9 @@ namespace KuiperZone.Implink.Api;
 /// </summary>
 public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
 {
-    private readonly HttpClient _client;
+    private readonly object _synLock = new();
+    private readonly string? _contentType;
+    private volatile HttpClient? v_client;
 
     /// <summary>
     /// Constructor. If factory is null, the instance will have no signer.
@@ -39,35 +41,8 @@ public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
     public HttpClientApi(IReadOnlyClientProfile profile, ISignerFactory? factory, string? contentType = null)
         : base(profile)
     {
-        if (profile.DisableSslValidation)
-        {
-            Logger.Global.Debug("SSL VALIDATION DISABLED");
-            var handler = new HttpClientHandler();
-            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, sslPolicyErrors) => { return true; };
-            _client = HttpClientFactory.Create(handler);
-        }
-        else
-        {
-            Logger.Global.Debug("SSL validation");
-            _client = HttpClientFactory.Create();
-        }
-
-        // https://stackoverflow.com/questions/23438416/why-is-httpclient-baseaddress-not-working
-        // You must place a slash at the end of the BaseAddress, and you must not place a slash at the beginning of your relative URI.
-        _client.BaseAddress = new Uri(new Uri(Profile.BaseAddress).AbsoluteUri.Trim('/') + '/');
-        _client.Timeout = TimeSpan.FromMilliseconds(Profile.Timeout);
-
         Signer = factory?.Create(this);
-
-        if (!string.IsNullOrEmpty(Profile.UserAgent))
-        {
-            _client.DefaultRequestHeaders.Add("User-Agent", Profile.UserAgent);
-        }
-
-        if (!string.IsNullOrEmpty(contentType))
-        {
-            _client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(contentType));
-        }
+        _contentType = contentType;
     }
 
     /// <summary>
@@ -133,7 +108,7 @@ public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
         try
         {
             string body = "";
-            var resp = _client.Send(request, HttpCompletionOption.ResponseContentRead);
+            var resp = GetClientOnDemaned().Send(request, HttpCompletionOption.ResponseContentRead);
 
             if (resp.Content != null)
             {
@@ -172,6 +147,61 @@ public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
     /// </summary>
     protected override void Dispose(bool disposing)
     {
-        _client.Dispose();
+        v_client?.Dispose();
+    }
+
+    private HttpClient GetClientOnDemaned()
+    {
+        var client = v_client;
+
+        if (client != null)
+        {
+            return client;
+        }
+
+        lock (_synLock)
+        {
+            client = v_client;
+
+            if (client != null)
+            {
+                return client;
+            }
+
+            Logger.Global.Debug("Create underlying client");
+
+            if (Profile.DisableSslValidation)
+            {
+                Logger.Global.Debug("SSL VALIDATION DISABLED");
+                var handler = new HttpClientHandler();
+                handler.ServerCertificateCustomValidationCallback = (message, cert, chain, sslPolicyErrors) => { return true; };
+                client = HttpClientFactory.Create(handler);
+            }
+            else
+            {
+                Logger.Global.Debug("SSL validation");
+                client = HttpClientFactory.Create();
+            }
+
+            // https://stackoverflow.com/questions/23438416/why-is-httpclient-baseaddress-not-working
+            // You must place a slash at the end of the BaseAddress, and you must not place a slash at the beginning of your relative URI.
+            client.BaseAddress = new Uri(new Uri(Profile.BaseAddress).AbsoluteUri.Trim('/') + '/');
+            client.Timeout = TimeSpan.FromMilliseconds(Profile.Timeout);
+
+
+            if (!string.IsNullOrEmpty(Profile.UserAgent))
+            {
+                client.DefaultRequestHeaders.Add("User-Agent", Profile.UserAgent);
+            }
+
+            if (!string.IsNullOrEmpty(_contentType))
+            {
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(_contentType));
+            }
+
+            v_client = client;
+        }
+
+        return client;
     }
 }

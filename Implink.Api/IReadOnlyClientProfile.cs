@@ -26,24 +26,30 @@ namespace KuiperZone.Implink.Api;
 public interface IReadOnlyClientProfile : IValidity, IEquatable<IReadOnlyClientProfile>
 {
     /// <summary>
-    /// Gets the mandatory routing name (case insensitive). For RT profiles, it corresponds to incoming an
-    /// <see cref="SubmitPost.GroupName"/>. For RO profiles, it corresponds to <see cref="SubmitPost.UserName"/>.
+    /// Gets the mandatory routing name (case insensitive). For remote terminated (RT) profiles, it corresponds to
+    /// a <see cref="SubmitPost.GroupName"/>. For remote originated (RO) profiles, it corresponds to
+    /// <see cref="SubmitPost.UserName"/>.
     /// </summary>
     string NameId { get; }
 
     /// <summary>
-    /// Gets the mandatory API base URL. The value must begin with "https://" or "http://". For outbound, this would
-    /// be an external partner or third-party service such as : "https://api.twitter.com/2/" or
-    /// "https://api.telegram.org/bot{token}/". For inbound, it should specify the listening service on the local
-    /// network, i.e. "http://localhost:38669". For LAN traffic, HTTP (rather than HTTPS) may be used.
+    /// Gets the end-point kind. This specifies whether requests are to be remote terminated (RT) or originated (RO).
+    /// If remote originated, the values implicitly identifies the local destination address.
+    /// </summary>
+    EndpointKind Endpoint { get; }
+
+    /// <summary>
+    /// Gets the API base URL. It is mandatory where <see cref="Endpoint"/> is <see cref="EndpointKind.Remote"/>
+    /// and should, in this case, specify the base address of the external partner or third-party API service,
+    /// i.e. "https://api.twitter.com/2/". It is not used (and should be left blank) for remote originated requests,
+    /// as the local end-point can be deduced from <see cref="Endpoint"/>.
     /// </summary>
     string BaseAddress { get; }
 
     /// <summary>
-    /// Gets the mandatory API technology kind. This is a string containing a single supported value,
-    /// i.e. "Twitter" or "IMPv1".
+    /// Gets the mandatory API technology kind.
     /// </summary>
-    string ApiKind { get; }
+    ApiKind Api { get; }
 
     /// <summary>
     /// Gets the optional routing categories. It may contain a comma separated case insensitive list of category

@@ -97,7 +97,7 @@ public class ClientDictionary : IDisposable
 
     /// <summary>
     /// Adds a new client with given profile. The client implementation is created according to
-    /// <see cref="IReadOnlyClientProfile.ApiKind"/>. The result is true on success, or false if already exists.
+    /// <see cref="IReadOnlyClientProfile.Api"/>. The result is true on success, or false if already exists.
     /// </summary>
     public bool Add(IReadOnlyClientProfile profile)
     {
@@ -124,9 +124,9 @@ public class ClientDictionary : IDisposable
     /// </summary>
     public bool Reload(IEnumerable<IReadOnlyClientProfile> profiles)
     {
-        var pn = IsRemoteTerminated ? "RT" : "RO";
+        var kind = IsRemoteTerminated ? "RT" : "RO";
+        Logger.Global.Debug($"Reload {kind} profiles");
 
-        Logger.Global.Debug($"Reload profiles {pn}");
         var newDictionary = new Dictionary<string, IReadOnlyClientProfile>(StringComparer.InvariantCultureIgnoreCase);
 
         foreach (var item in profiles)
@@ -137,24 +137,25 @@ public class ClientDictionary : IDisposable
 
                 if (string.IsNullOrWhiteSpace(item.NameId))
                 {
-                    Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile)}.{nameof(ClientProfile.NameId)} empty for {pn} profile");
+                    Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile)}.{nameof(ClientProfile.NameId)} empty for {kind} profile");
                     continue;
                 }
 
                 if (!item.CheckValidity(out string msg))
                 {
-                    Logger.Global.Write(SeverityLevel.Warning, $"{pn} profile {item.NameId} invalid: {msg}");
+                    Logger.Global.Write(SeverityLevel.Warning, $"{kind} profile: {msg}");
                     continue;
                 }
 
                 if (!newDictionary.TryAdd(item.GetKey(), item))
                 {
-                    Logger.Global.Write(SeverityLevel.Warning, $"{nameof(ClientProfile.NameId)} and {nameof(ClientProfile.BaseAddress)} combination not unique for {pn} {item.NameId}");
+                    Logger.Global.Write(SeverityLevel.Warning,
+                        $"{nameof(ClientProfile.NameId)} and {nameof(ClientProfile.BaseAddress)} combination not unique for {kind} profile {item.NameId}");
                 }
             }
             else
             {
-                Logger.Global.Write(SeverityLevel.Warning, $"{pn} profile {item.NameId} is disabled");
+                Logger.Global.Write(SeverityLevel.Warning, $"{kind} profile {item.NameId} is disabled");
             }
         }
 

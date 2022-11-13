@@ -195,7 +195,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
         {
             var prof = client.Profile;
 
-            Logger.Global.Write($"Sending: {prof.ApiKind}, {prof.BaseAddress}");
+            Logger.Global.Write($"Sending: {prof.Api}, {prof.BaseAddress}");
             var code = client.SubmitPostRequest(submit, out response);
 
             Logger.Global.Write("Response code: " + code);
@@ -203,7 +203,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
 
             if (code != (int)HttpStatusCode.OK)
             {
-                var msg = $"Failed to submit request on internal thread: {prof.ApiKind}, {prof.BaseAddress}. " +
+                var msg = $"Failed to submit request on internal thread: {prof.Api}, {prof.BaseAddress}. " +
                     $"Status code {code}, {response.ErrorReason}";
                 Logger.Global.Write(SeverityLevel.Notice, msg);
             }
@@ -223,7 +223,9 @@ public class GatewayApp : IDisposable, IAsyncDisposable
 
     private async Task<Task> SubmitPostHandler(HttpContext ctx)
     {
-        Logger.Global.Write(SeverityLevel.Notice, $"{nameof(SubmitPost)} received on {ServerUrl}");
+        string kind = IsRemoteTerminated ? "RemoteTerminated" : "RemoteOriginated";
+        Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {nameof(SubmitPost)} on {kind} via {ServerUrl}");
+
         using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8, false);
 
         var body = await reader.ReadToEndAsync();
@@ -290,7 +292,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
                     else
                     if (item.Counter.IsThrottled(true))
                     {
-                        errors.Add(item.Client.Profile.ApiKind + ' ' + HttpStatusCode.TooManyRequests);
+                        errors.Add(item.Client.Profile.Api + ' ' + HttpStatusCode.TooManyRequests);
                         Logger.Global.Debug(errors[^1]);
 
                         if (code == (int)HttpStatusCode.OK)

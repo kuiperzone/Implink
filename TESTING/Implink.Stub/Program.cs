@@ -254,7 +254,7 @@ class Program
         // Unique authentication based on values
         p.Authentication = $"SECRET=123{rt.GetHashCode()}";
 
-        p.ApiKind = ClientFactory.ImpV1;
+        p.Api = ClientFactory.ImpV1;
         p.UserAgent = "Implink";
         return p;
     }

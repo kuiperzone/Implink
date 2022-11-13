@@ -36,9 +36,14 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
     public string BaseAddress { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.ApiKind"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.Enpoint"/> and provides a setter.
     /// </summary>
-    public string ApiKind { get; set; } = "";
+    public EndpointKind Endpoint { get; set; }
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyClientProfile.Api"/> and provides a setter.
+    /// </summary>
+    public ApiKind Api { get; set; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.Categories"/> and provides a setter.
@@ -81,6 +86,32 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
     public bool DisableSslValidation { get; set; }
 
     /// <summary>
+    /// Default constructor.
+    /// </summary>
+    public ClientProfile()
+    {
+    }
+
+    /// <summary>
+    /// Copy constructor.
+    /// </summary>
+    public ClientProfile(IReadOnlyClientProfile other)
+    {
+        NameId = other.NameId;
+        BaseAddress = other.BaseAddress;
+        Endpoint = other.Endpoint;
+        Api = other.Api;
+        Categories = other.Categories;
+        Authentication = other.Authentication;
+        UserAgent = other.UserAgent;
+        MaxText = other.MaxText;
+        ThrottleRate = other.ThrottleRate;
+        Timeout = other.Timeout;
+        Enabled = other.Enabled;
+        DisableSslValidation = other.DisableSslValidation;
+    }
+
+    /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.GetKey"/>.
     /// </summary>
     public string GetKey()
@@ -98,19 +129,25 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
 
         if (string.IsNullOrWhiteSpace(NameId))
         {
-            message = $"{ClassName}.{nameof(ClientProfile.NameId)} is mandatory";
+            message = $"{ClassName}.{nameof(ClientProfile.NameId)} empty";
             return false;
         }
 
-        if (!BaseAddress.StartsWith("https://") && !BaseAddress.StartsWith("http://"))
+        if (Api == ApiKind.None)
         {
-            message = $"{nameof(ClientProfile.BaseAddress)} must start 'https://' or 'http://' for {ClassName}.{nameof(ClientProfile.NameId)}={NameId}";
+            message = $"{ClassName}.{nameof(ClientProfile.Api)} invalid for {NameId}";
+            return false;
+        }
+
+        if (Endpoint == EndpointKind.Remote && !BaseAddress.StartsWith("https://") && !BaseAddress.StartsWith("http://"))
+        {
+            message = $"{ClassName}.{nameof(ClientProfile.BaseAddress)} must start 'https://' or 'http://' for remote terminated {NameId} group";
             return false;
         }
 
         if (Timeout < 1)
         {
-            message = $"{nameof(ClientProfile.Timeout)} must be positive for {ClassName}.{nameof(ClientProfile.NameId)} {NameId}";
+            message = $"{ClassName}.{nameof(ClientProfile.Timeout)} must be positive for {NameId}";
             return false;
         }
 
@@ -130,11 +167,13 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
 
         if (obj != null &&
             NameId == obj.NameId &&
-            Categories == obj.Categories &&
-            ApiKind == obj.ApiKind &&
             BaseAddress == obj.BaseAddress &&
+            Endpoint == obj.Endpoint &&
+            Api == obj.Api &&
+            Categories == obj.Categories &&
             Authentication == obj.Authentication &&
             UserAgent == obj.UserAgent &&
+            MaxText == obj.MaxText &&
             ThrottleRate == obj.ThrottleRate &&
             Timeout == obj.Timeout &&
             Enabled == obj.Enabled &&

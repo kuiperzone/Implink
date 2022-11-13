@@ -18,39 +18,57 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using System.Text;
-
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Concrete implementation of <see cref="HttpClientApi"/> for the native IMP API client.
+/// Defines supported request APIs. Values are stored in database and should be explicitly defined.
 /// </summary>
-public sealed class ImpHttpClient : HttpClientApi
+public enum ApiKind
 {
     /// <summary>
-    /// Constructor.
+    /// A placeholder for an invalid value only. Not a valid protocol.
     /// </summary>
-    public ImpHttpClient(IReadOnlyClientProfile profile)
-        : base(profile, profile.Endpoint == EndpointKind.Remote ? new ImpSignerFactory(profile.Api) : null, "application/json")
+    None,
+
+    /// <summary>
+    /// IMP protocol version 1. By directional, i.e. both remote terminated and originated.
+    /// </summary>
+    ImpV1 = 1,
+
+    /// <summary>
+    /// Twitter third-party protocol. Remote terminated only.
+    /// </summary>
+    Twitter = 100,
+
+    /// <summary>
+    /// Twitter third-party protocol. Remote terminated only.
+    /// </summary>
+    Facebook = 101,
+}
+
+/// <summary>
+/// Extension class.
+/// </summary>
+public static class ApiKindExt
+{
+    /// <summary>
+    /// Returns true if kind is an IMP protocol (any version).
+    /// </summary>
+    public static bool IsImp(this ApiKind kind)
     {
-        profile.Api.AssetImp();
+        return kind == ApiKind.ImpV1;
     }
 
     /// <summary>
-    /// Implements <see cref="HttpClientApi.ToSubmitRequest"/>.
+    /// Asserts IsImp() is true.
     /// </summary>
-    protected override HttpRequestMessage ToSubmitRequest(SubmitPost submit)
+    /// <exception cref="ArgumentException">Not a valid IMP protocol</exception>
+    public static void AssetImp(this ApiKind kind)
     {
-        var msg = new HttpRequestMessage(HttpMethod.Post, nameof(SubmitPost));
-        msg.Content = new StringContent(submit.ToString(), Encoding.UTF8, "application/json");
-        return msg;
+        if (!IsImp(kind))
+        {
+            throw new ArgumentException("Not a valid IMP protocol");
+        }
     }
 
-    /// <summary>
-    /// Implements <see cref="HttpClientApi.ToSubmitResponse"/>.
-    /// </summary>
-    protected override SubmitResponse ToSubmitResponse(string body)
-    {
-        return Jsonizable.Deserialize<SubmitResponse>(body);
-    }
 }

@@ -29,13 +29,17 @@ namespace KuiperZone.Implink.Api;
 public class ImpSigner : IHttpSigner
 {
     private readonly ImpSecret _secret;
+    private readonly ApiKind _version;
 
     /// <summary>
     /// Constructor with key instance.
     /// </summary>
-    public ImpSigner(ImpSecret secret)
+    public ImpSigner(ImpSecret secret, ApiKind version)
     {
         _secret = secret;
+
+        version.AssetImp();
+        _version = version;
     }
 
     /// <summary>
@@ -54,7 +58,7 @@ public class ImpSigner : IHttpSigner
         var sign = _secret.GetSignature(nonce, body, out string timestamp);
 
         // Future proof - a version ID
-        request.Headers.Add("IMP_API", ClientFactory.ImpV1);
+        request.Headers.Add("IMP_API", _version.ToString());
         request.Headers.Add(ImpSecret.NONCE_KEY, nonce);
         request.Headers.Add(ImpSecret.TIMESTAMP_KEY, timestamp);
         request.Headers.Add(ImpSecret.SIGN_KEY, sign);

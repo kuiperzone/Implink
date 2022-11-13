@@ -31,27 +31,27 @@ public class ClientContainer : IClientApi, IDisposable
     /// <summary>
     /// Constructor. This instance will own the client and dispose of it.
     /// </summary>
-    public ClientContainer(ClientApi client, bool remoteTerminated = true)
+    public ClientContainer(ClientApi client)
     {
-        IsRemoteTerminated = remoteTerminated;
+        IsRemoteTerminated = client.Profile.Endpoint == EndpointKind.Remote;
+
         Client = client;
         Counter = new(client.Profile.ThrottleRate);
 
-        if (!remoteTerminated && Client.Profile.ApiKind == ClientFactory.ImpV1)
+        if (!IsRemoteTerminated)
         {
             AuthenticationSecret = new ImpSecret(client);
         }
     }
 
     /// <summary>
-    /// Constructor in which the client is created according to <see cref="IReadOnlyClientProfile.ApiKind"/>.
+    /// Constructor in which the client is created according to <see cref="IReadOnlyClientProfile.Api"/>.
     /// Where remoteTerminated is false, the API kind is ignored as the client is always an instance of
     /// <see cref="ImpHttpClient"/>.
     /// </summary>
-    public ClientContainer(IReadOnlyClientProfile profile, bool remoteTerminated)
-        : this(remoteTerminated ? ClientFactory.Create(profile) : new ImpHttpClient(profile, false), remoteTerminated)
+    public ClientContainer(IReadOnlyClientProfile profile)
+        : this(CreateClient(profile))
     {
-
     }
 
     /// <summary>
@@ -104,5 +104,18 @@ public class ClientContainer : IClientApi, IDisposable
     public void Dispose()
     {
         Client.Dispose();
+    }
+
+    private static ClientApi CreateClient(IReadOnlyClientProfile profile)
+    {
+        if (profile.Endpoint == EndpointKind.Remote)
+        {
+            return ClientFactory.Create(profile);
+        }
+
+        // Populate base address
+        var temp = new ClientProfile(profile);
+
+        return new ImpHttpClient(temp);
     }
 }

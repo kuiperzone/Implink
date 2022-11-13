@@ -35,6 +35,13 @@ public abstract class ClientApi : IClientApi, IDisposable
     public ClientApi(IReadOnlyClientProfile profile)
     {
         profile.AssertValidity();
+
+        if (string.IsNullOrEmpty(profile.BaseAddress))
+        {
+            // Must be defined here, as the API class does not have access to local addresses
+            throw new ArgumentException($"{nameof(ClientProfile.BaseAddress)} empty");
+        }
+
         Profile = profile;
         AuthDictionary = DictionaryParser.ToDictionary(profile.Authentication);
         Categories = DictionaryParser.ToSet(profile.Categories);

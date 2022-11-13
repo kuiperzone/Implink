@@ -21,26 +21,26 @@
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Implements <see cref="ISignerFactory"/> for the native IMP API.
+/// Defines supported kndpoint kinds. Values are stored in database and should be explicitly defined.
 /// </summary>
-public class ImpSignerFactory : ISignerFactory
+public enum EndpointKind
 {
-    public ImpSignerFactory(ApiKind version)
-    {
-        version.AssetImp();
-        Version = version;
-    }
+    /// <summary>
+    /// Requests are generated locally, with the endpoint being a REMOTE TERMINATED entity,
+    /// i.e. third-party service (Twitter) or other federated IMP server. All other values are
+    /// to be considered REMOTE ORIGINATED.
+    /// </summary>
+    Remote = 0,
 
     /// <summary>
-    /// Gets the API kind, indicating any major version.
+    /// The request are remote originated, with the endpoint being a local Elgg service.
     /// </summary>
-    public ApiKind Version { get; }
+    LocalElgg = 1,
 
     /// <summary>
-    /// Creates an instance of <see cref="IHttpSigner"/>.
+    /// The request are remote originated, with the endpoint being a local MatterMost service.
     /// </summary>
-    public IHttpSigner Create(ClientApi client)
-    {
-        return new ImpSigner(new ImpSecret(client), Version);
-    }
+    LocalMatterMost = 2,
+
 }
+
