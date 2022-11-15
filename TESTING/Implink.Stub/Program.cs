@@ -155,7 +155,7 @@ class Program
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid name)");
         sub = CreateSubmit(rt, false);
-        sub.GroupName = "InvalidName";
+        sub.GroupId = "InvalidName";
         sub.UserName = "InvalidName";
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
 
@@ -166,7 +166,7 @@ class Program
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid authentication)");
         sub = CreateSubmit(rt, false);
-        sub.GroupName = AuthFailNameId;
+        sub.GroupId = AuthFailNameId;
         sub.UserName = AuthFailNameId;
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.Unauthorized, resp);
 
@@ -263,7 +263,7 @@ class Program
     {
         var s = new SubmitPost();
         var name = hasCategory ? TestNameWithCatId : TestNameId;;
-        s.GroupName = name;
+        s.GroupId = name;
         s.UserName = name;
         s.Category = hasCategory ? TestCategory : null;
         s.MsgId = msgId;

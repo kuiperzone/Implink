@@ -37,22 +37,28 @@ public class SubmitPost : RequestMessage
     /// </summary>
     public SubmitPost(SubmitPost other)
     {
-        GroupName = other.GroupName;
+        GroupId = other.GroupId;
+        GatewayId = other.GatewayId;
         UserName = other.UserName;
         Category = other.Category;
         MsgId = other.MsgId;
-        ParentId = other.ParentId;
+        ParentMsgId = other.ParentMsgId;
         Text = other.Text;
         LinkUrl = other.LinkUrl;
     }
 
     /// <summary>
-    /// Gets or sets the mandatory group name.
+    /// Gets or sets the mandatory group ID. A message must belong to a group (channel or topic).
     /// </summary>
-    public string GroupName { get; set; } = "";
+    public string GroupId { get; set; } = "";
 
     /// <summary>
-    /// Get or sets the user name.
+    /// Gets or sets the gateway name. It is mandatory for traffic other than that on the internal LAN.
+    /// </summary>
+    public string GatewayId { get; set; } = "";
+
+    /// <summary>
+    /// Get or sets the mandatory name of the human use who originally posted the message.
     /// </summary>
     public string UserName { get; set; } = "";
 
@@ -72,7 +78,7 @@ public class SubmitPost : RequestMessage
     /// Gets or sets the parent message ID. If empty, this is a top-level post. If specified,
     /// this is a reply to an existing message, which must exist on the destination.
     /// </summary>
-    public string? ParentId { get; set; }
+    public string? ParentMsgId { get; set; }
 
     /// <summary>
     /// Gets or sets the mandatory message text.
@@ -89,21 +95,30 @@ public class SubmitPost : RequestMessage
     /// </summary>
     public override bool CheckValidity(out string message)
     {
-        if (string.IsNullOrWhiteSpace(GroupName) || GroupName.Length > 64)
+        const int MaxLength = 64;
+
+        if (string.IsNullOrWhiteSpace(GroupId) || GroupId.Length > MaxLength)
         {
-            message = $"{nameof(GroupName)} undefined or invalid";
+            message = $"Invalid {nameof(GroupId)}";
+            return false;
+        }
+
+        if (GatewayId != null && GatewayId.Length > MaxLength)
+        {
+            // Non-empty name NOT enforced
+            message = $"Invalid {nameof(GatewayId)}";
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(UserName) || UserName.Length > 64)
         {
-            message = $"{nameof(UserName)} undefined or invalid";
+            message = $"Invalid {nameof(UserName)}";
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(Text))
         {
-            message = $"{nameof(Text)} undefined";
+            message = $"Invalid {nameof(Text)}";
             return false;
         }
 

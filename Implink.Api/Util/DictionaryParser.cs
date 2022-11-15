@@ -30,14 +30,14 @@ public static class DictionaryParser
     /// An empty or null string results in an empty dictionary.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid dictionary key-value pair</exception>
-    /// <exception cref="ArgumentException">Key alread exists</exception>
+    /// <exception cref="ArgumentException">Key already exists</exception>
     public static Dictionary<string, string> ToDictionary(string? s)
     {
         var rslt = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
 
         if (!string.IsNullOrWhiteSpace(s))
         {
-            var split = s.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            var split = s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             foreach (var pair in split)
             {
@@ -62,15 +62,29 @@ public static class DictionaryParser
         return rslt;
     }
 
-    public static HashSet<string> ToSet(string? s)
+    /// <summary>
+    /// Parses comma separated string and returns hash set. An empty or null string results in an empty set.
+    /// </summary>
+    public static HashSet<string> ToSet(string? s, bool trimHash = false)
     {
+        var hash = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+
         if (!string.IsNullOrWhiteSpace(s))
         {
-            // Use sorted - number of items expected to 1 or several only.
-            return new HashSet<string>(s.Split(',', StringSplitOptions.RemoveEmptyEntries), StringComparer.InvariantCultureIgnoreCase);
+            foreach (var item in s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var temp = item;
+
+                if (trimHash)
+                {
+                    temp = temp.TrimStart('#');
+                }
+
+                hash.Add(temp);
+            }
         }
 
-        return new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+        return hash;
     }
 
 }

@@ -18,18 +18,36 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Api;
+using KuiperZone.Implink.Api;
+
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// Implements <see cref="ISignerFactory"/> for the native IMP API.
+/// Extends <see cref="IReadOnlyClientProfile"/>.
 /// </summary>
-public class ImpSignerFactory : ISignerFactory
+public interface IReadOnlyNamedClientProfile : IReadOnlyClientProfile, IDictionaryKey, IValidity, IEquatable<IReadOnlyNamedClientProfile>
 {
     /// <summary>
-    /// Creates an instance of <see cref="IHttpSigner"/>.
+    /// Gets the mandatory unique identifier for the client. Example "LocalElgg", "Twitter1" etc.
     /// </summary>
-    public IHttpSigner Create(ClientApi client)
-    {
-        return new ImpSigner(new ImpSecret(client));
-    }
+    string Id { get; }
+
+    /// <summary>
+    /// Gets the mandatory API technology kind. Cannot be None.
+    /// </summary>
+    ApiKind Api { get; }
+
+    /// <summary>
+    /// Gets whether to prefix username to message text. This is done because the "user account" provisioned
+    /// with remote social media platforms may be that of the gateway and not that of the posting user.
+    /// The default is true.
+    /// </summary>
+    bool PrefixUser { get; }
+
+    /// <summary>
+    /// Gets the maximum number of characters to permit in the post text. Messages longer than this will be truncated.
+    /// A value of 0 or less does nothing.
+    /// </summary>
+    int MaxText { get; }
+
 }

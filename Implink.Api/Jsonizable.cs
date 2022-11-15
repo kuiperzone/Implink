@@ -36,7 +36,7 @@ public abstract class Jsonizable : IValidity
             WriteIndented = false, PropertyNameCaseInsensitive = true };
 
     /// <summary>
-    /// Deserialize using <see cref="Jsonizable"/>.
+    /// Deserialize using JsonSerializer. If string is empty or null, the result is a default instance.
     /// </summary>
     public static T Deserialize<T>(string? s) where T : Jsonizable, new()
     {

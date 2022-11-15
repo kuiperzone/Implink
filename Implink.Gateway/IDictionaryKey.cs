@@ -18,18 +18,15 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Api;
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// Implements <see cref="ISignerFactory"/> for the native IMP API.
+/// Interface for classes with an ID string to be used as a dictionary key.
 /// </summary>
-public class ImpSignerFactory : ISignerFactory
+public interface IDictionaryKey
 {
     /// <summary>
-    /// Creates an instance of <see cref="IHttpSigner"/>.
+    /// Gets the dictionary key.
     /// </summary>
-    public IHttpSigner Create(ClientApi client)
-    {
-        return new ImpSigner(new ImpSecret(client));
-    }
+    string GetKey();
 }

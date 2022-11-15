@@ -32,14 +32,9 @@ public static class ClientFactory
     /// instances can be created.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid Api, or Endpoint</exception>
-    public static ClientApi Create(IReadOnlyClientProfile profile)
+    public static ClientApi Create(ApiKind kind, IReadOnlyClientProfile profile)
     {
-        if (profile.Endpoint != EndpointKind.Remote)
-        {
-            throw new ArgumentException($"{nameof(profile.Endpoint)} cannot be remote originated");
-        }
-
-        switch (profile.Api)
+        switch (kind)
         {
             case ApiKind.ImpV1:
                 return new ImpHttpClient(profile);
@@ -47,7 +42,7 @@ public static class ClientFactory
                 return new TwitterClient(profile);
             default:
                 throw new ArgumentException(
-                    $"Unknown or invalid {nameof(IReadOnlyClientProfile.Api)} {profile.Api} for route {profile.NameId}");
+                    $"Unknown or invalid {nameof(ApiKind)} {kind}");
 
         }
     }

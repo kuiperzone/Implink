@@ -35,7 +35,17 @@ namespace KuiperZone.Implink.Gateway;
 /// </summary>
 public sealed class ProfileDatabase : IDisposable
 {
-    private readonly string? _filename;
+    /// <summary>
+    /// Define consistent naming of table.
+    /// </summary>
+    public const string ClientTable = nameof(ClientProfile);
+
+    /// <summary>
+    /// Define consistent naming of table.
+    /// </summary>
+    public const string RouteTable = nameof(RouteProfile);
+
+    private readonly string? _directory;
     private readonly IDbConnection? _sqlConnection;
 
     /// <summary>
@@ -43,12 +53,10 @@ public sealed class ProfileDatabase : IDisposable
     /// </summary>
     /// <exception cref="ArgumentException">Invalid kind or connection</exception>
     /// <exception cref="DirectoryNotFoundException">Invalid directory</exception>
-    public ProfileDatabase(DatabaseKind kind, string connection, bool remoteTerminated)
+    public ProfileDatabase(DatabaseKind kind, string connection)
     {
         Kind = kind;
         Connection = connection;
-        IsRemoteTerminated = remoteTerminated;
-        TableName = IsRemoteTerminated ? "RtRoute" : "RoRoute";
 
         if (string.IsNullOrEmpty(Connection))
         {
@@ -64,7 +72,7 @@ public sealed class ProfileDatabase : IDisposable
                 throw new DirectoryNotFoundException("File directory not exist: " + info.Directory?.FullName);
             }
 
-            _filename = Path.Combine(info.Directory.FullName, TableName + ".json");
+            _directory = info.Directory.FullName;
         }
         else
         if (Kind == DatabaseKind.MySQL)
@@ -83,11 +91,6 @@ public sealed class ProfileDatabase : IDisposable
     }
 
     /// <summary>
-    /// Gets whether remote terminated.
-    /// </summary>
-    public bool IsRemoteTerminated { get; }
-
-    /// <summary>
     /// Gets the database technology kind.
     /// </summary>
     public DatabaseKind Kind { get; }
@@ -96,11 +99,6 @@ public sealed class ProfileDatabase : IDisposable
     /// Gets the connection string.
     /// </summary>
     public string Connection { get; }
-
-    /// <summary>
-    /// Gets the applicable table name.
-    /// </summary>
-    public string TableName { get; }
 
     /// <summary>
     /// Gets or sets whether the connection is open. The connection is opened either by explicitly
@@ -134,6 +132,32 @@ public sealed class ProfileDatabase : IDisposable
     }
 
     /// <summary>
+    /// Queries all clients. The result is a new instance on each call.
+    /// </summary>
+    public IEnumerable<NamedClientProfile> QueryAllClients()
+    {
+        if (_directory != null)
+        {
+            return LoadFile<NamedClientProfile>(ClientTable);
+        }
+
+        return Query<NamedClientProfile>("SELECT STATEMENT TBD");
+    }
+
+    /// <summary>
+    /// Queries all remote-terminated rotes. The result is a new instance on each call.
+    /// </summary>
+    public IEnumerable<RouteProfile> QueryAllRoutes()
+    {
+        if (_directory != null)
+        {
+            return LoadFile<RouteProfile>(RouteTable);
+        }
+
+        return Query<RouteProfile>("SELECT STATEMENT TBD");
+    }
+
+    /// <summary>
     /// Disposal pattern.
     /// </summary>
     public void Dispose()
@@ -149,30 +173,28 @@ public sealed class ProfileDatabase : IDisposable
         return Kind + ": " + Connection;
     }
 
-    /// <summary>
-    /// Queries all routes, either remote terminated or remote originated. The result is a new instance on each call.
-    /// </summary>
-    public IEnumerable<IReadOnlyClientProfile> QueryAllRoutes()
+    private IEnumerable<T> LoadFile<T>(string fname)
     {
-        if (_filename != null)
+        if (_directory != null)
         {
+            var path = Path.Combine(_directory, fname);
+            Logger.Global.Debug("File path: " + path);
+
             var opts = new JsonSerializerOptions();
             opts.PropertyNameCaseInsensitive = true;
 
             try
             {
-                Logger.Global.Debug("Filename: " + _filename);
-                var text = File.ReadAllText(_filename, Encoding.UTF8);
-                Logger.Global.Debug("Text: " + text);
-                return JsonSerializer.Deserialize<ClientProfile[]>(text, opts) ?? Array.Empty<ClientProfile>();
+                var text = File.ReadAllText(path, Encoding.UTF8);
+                return JsonSerializer.Deserialize<T[]>(text, opts) ?? Array.Empty<T>();
             }
             catch (FileNotFoundException)
             {
-                return Array.Empty<ClientProfile>();
+                return Array.Empty<T>();
             }
         }
 
-        return Query<ClientProfile>("SELECT STATEMENT TBD");
+        throw new InvalidOperationException($"{nameof(LoadFile)} operation not supported for ${Kind}");
     }
 
     private IEnumerable<T> Query<T>(string sql)

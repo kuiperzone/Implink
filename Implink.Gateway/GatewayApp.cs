@@ -264,7 +264,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
                 return (int)HttpStatusCode.BadRequest;
             }
 
-            var nameId = IsRemoteTerminated ? submit.GroupName : submit.UserName;
+            var nameId = IsRemoteTerminated ? submit.GroupId : submit.UserName;
             var clients = _clients.Get(nameId);
 
             int count = 0;

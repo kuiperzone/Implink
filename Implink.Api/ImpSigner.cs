@@ -34,12 +34,9 @@ public class ImpSigner : IHttpSigner
     /// <summary>
     /// Constructor with key instance.
     /// </summary>
-    public ImpSigner(ImpSecret secret, ApiKind version)
+    public ImpSigner(ImpSecret secret)
     {
         _secret = secret;
-
-        version.AssetImp();
-        _version = version;
     }
 
     /// <summary>

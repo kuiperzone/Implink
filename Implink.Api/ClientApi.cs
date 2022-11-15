@@ -44,7 +44,6 @@ public abstract class ClientApi : IClientApi, IDisposable
 
         Profile = profile;
         AuthDictionary = DictionaryParser.ToDictionary(profile.Authentication);
-        Categories = DictionaryParser.ToSet(profile.Categories);
     }
 
     /// <summary>
@@ -56,11 +55,6 @@ public abstract class ClientApi : IClientApi, IDisposable
     /// Gets the authentication dictionary. The dictionary is empty if no authentication is specified.
     /// </summary>
     public IReadOnlyDictionary<string, string> AuthDictionary { get; }
-
-    /// <summary>
-    /// Gets the categories set.
-    /// </summary>
-    public IReadOnlySet<string> Categories { get; }
 
     /// <summary>
     /// Implements <see cref="IClientApi.SubmitPostRequest"/> as abstract.

@@ -31,9 +31,8 @@ public sealed class ImpHttpClient : HttpClientApi
     /// Constructor.
     /// </summary>
     public ImpHttpClient(IReadOnlyClientProfile profile)
-        : base(profile, profile.Endpoint == EndpointKind.Remote ? new ImpSignerFactory(profile.Api) : null, "application/json")
+        : base(profile, new ImpSignerFactory(), "application/json")
     {
-        profile.Api.AssetImp();
     }
 
     /// <summary>

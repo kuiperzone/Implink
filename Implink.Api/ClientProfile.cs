@@ -23,32 +23,12 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// A serializable class which implements <see cref="IReadOnlyClientProfile"/> and provides setters.
 /// </summary>
-public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEquatable<IReadOnlyClientProfile>
+public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity
 {
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.NameId"/> and provides a setter.
-    /// </summary>
-    public string NameId { get; set; } = "";
-
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.BaseAddress"/> and provides a setter.
     /// </summary>
     public string BaseAddress { get; set; } = "";
-
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.Enpoint"/> and provides a setter.
-    /// </summary>
-    public EndpointKind Endpoint { get; set; }
-
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.Api"/> and provides a setter.
-    /// </summary>
-    public ApiKind Api { get; set; }
-
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.Categories"/> and provides a setter.
-    /// </summary>
-    public string? Categories { get; set; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.Authentication"/> and provides a setter.
@@ -61,24 +41,9 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
     public string? UserAgent { get; set; }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.MaxText"/> and provides a setter.
-    /// </summary>
-    public int MaxText { get; set; }
-
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.ThrottleRate"/> and provides a setter.
-    /// </summary>
-    public int ThrottleRate { get; set; }
-
-    /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.Timeout"/> and provides a setter.
     /// </summary>
     public int Timeout { get; set; } = 15000;
-
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.Enabled"/> and provides a setter.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.DisableSslValidation"/> and provides a setter.
@@ -86,68 +51,25 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
     public bool DisableSslValidation { get; set; }
 
     /// <summary>
-    /// Default constructor.
-    /// </summary>
-    public ClientProfile()
-    {
-    }
-
-    /// <summary>
-    /// Copy constructor.
-    /// </summary>
-    public ClientProfile(IReadOnlyClientProfile other)
-    {
-        NameId = other.NameId;
-        BaseAddress = other.BaseAddress;
-        Endpoint = other.Endpoint;
-        Api = other.Api;
-        Categories = other.Categories;
-        Authentication = other.Authentication;
-        UserAgent = other.UserAgent;
-        MaxText = other.MaxText;
-        ThrottleRate = other.ThrottleRate;
-        Timeout = other.Timeout;
-        Enabled = other.Enabled;
-        DisableSslValidation = other.DisableSslValidation;
-    }
-
-    /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.GetKey"/>.
-    /// </summary>
-    public string GetKey()
-    {
-        // Want this as a method, rather than property.
-        return NameId.Trim().ToLowerInvariant() + "+" + BaseAddress.Trim().ToLowerInvariant();
-    }
-
-    /// <summary>
     /// Implements <see cref="Jsonizable.CheckValidity(out string)"/>.
     /// </summary>
     public override bool CheckValidity(out string message)
     {
-        const string ClassName = nameof(ClientProfile);
-
-        if (string.IsNullOrWhiteSpace(NameId))
+        if (string.IsNullOrWhiteSpace(BaseAddress))
         {
-            message = $"{ClassName}.{nameof(ClientProfile.NameId)} empty";
+            message = $"{nameof(BaseAddress)} empty";
             return false;
         }
 
-        if (Api == ApiKind.None)
+        if (!Uri.IsWellFormedUriString(BaseAddress, UriKind.Absolute))
         {
-            message = $"{ClassName}.{nameof(ClientProfile.Api)} invalid for {NameId}";
-            return false;
-        }
-
-        if (Endpoint == EndpointKind.Remote && !BaseAddress.StartsWith("https://") && !BaseAddress.StartsWith("http://"))
-        {
-            message = $"{ClassName}.{nameof(ClientProfile.BaseAddress)} must start 'https://' or 'http://' for remote terminated {NameId} group";
+            message = $"{nameof(BaseAddress)} not a valid URI";
             return false;
         }
 
         if (Timeout < 1)
         {
-            message = $"{ClassName}.{nameof(ClientProfile.Timeout)} must be positive for {NameId}";
+            message = $"{nameof(Timeout)} must be a non-zero positive value";
             return false;
         }
 
@@ -155,49 +77,4 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity, IEqu
         return true;
     }
 
-    /// <summary>
-    /// Implements <see cref="IEquatable{T}"/>.
-    /// </summary>
-    public virtual bool Equals(IReadOnlyClientProfile? obj)
-    {
-        if (obj == this)
-        {
-            return true;
-        }
-
-        if (obj != null &&
-            NameId == obj.NameId &&
-            BaseAddress == obj.BaseAddress &&
-            Endpoint == obj.Endpoint &&
-            Api == obj.Api &&
-            Categories == obj.Categories &&
-            Authentication == obj.Authentication &&
-            UserAgent == obj.UserAgent &&
-            MaxText == obj.MaxText &&
-            ThrottleRate == obj.ThrottleRate &&
-            Timeout == obj.Timeout &&
-            Enabled == obj.Enabled &&
-            DisableSslValidation == obj.DisableSslValidation)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Overrides.
-    /// </summary>
-    public sealed override bool Equals(object? obj)
-    {
-        return Equals(obj as IReadOnlyClientProfile);
-    }
-
-    /// <summary>
-    /// Overrides.
-    /// </summary>
-    public sealed override int GetHashCode()
-    {
-        return HashCode.Combine(NameId.Trim().ToLowerInvariant(), BaseAddress.Trim().ToLowerInvariant());
-    }
 }

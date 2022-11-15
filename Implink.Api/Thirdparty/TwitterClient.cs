@@ -68,7 +68,7 @@ public sealed class TwitterClient : ClientApi, IClientApi
             {
                 var rslt = GetTokenNoSync().Statuses.UpdateAsync(temp, new CancellationTokenSource(Profile.Timeout).Token).Result;
                 response.MsgId = rslt.Id.ToString(CultureInfo.InvariantCulture);
-                return 200;
+                return (int)HttpStatusCode.OK;
             }
         }
         catch (TwitterException e)
