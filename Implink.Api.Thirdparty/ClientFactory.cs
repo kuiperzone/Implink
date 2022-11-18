@@ -18,9 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using KuiperZone.Implink.Api.Thirdparty;
-
-namespace KuiperZone.Implink.Api;
+namespace KuiperZone.Implink.Api.Thirdparty;
 
 /// <summary>
 /// Creates clients according to <see cref="IReadOnlyClientProfile.Api"/>.
@@ -32,17 +30,17 @@ public static class ClientFactory
     /// instances can be created.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid Api, or Endpoint</exception>
-    public static ClientApi Create(ApiKind kind, IReadOnlyClientProfile profile)
+    public static IMessagingClient Create(ClientKind kind, IReadOnlyClientProfile profile)
     {
         switch (kind)
         {
-            case ApiKind.ImpV1:
-                return new ImpHttpClient(profile);
-            case ApiKind.Twitter:
+            case ClientKind.ImpV1:
+                return new ImpClient(profile);
+            case ClientKind.Twitter:
                 return new TwitterClient(profile);
             default:
                 throw new ArgumentException(
-                    $"Unknown or invalid {nameof(ApiKind)} {kind}");
+                    $"Unknown or invalid {nameof(ClientKind)} {kind}");
 
         }
     }

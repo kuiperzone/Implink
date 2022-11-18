@@ -19,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 using KuiperZone.Implink.Api;
+using KuiperZone.Implink.Api.Thirdparty;
 
 namespace KuiperZone.Implink.Gateway;
 
@@ -33,9 +34,9 @@ public class NamedClientProfile : ClientProfile, IReadOnlyNamedClientProfile, ID
     public string Id { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyNamedClientProfile.Api"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyNamedClientProfile.Kind"/> and provides a setter.
     /// </summary>
-    public ApiKind Api { get; set; } = ApiKind.None;
+    public ClientKind Kind { get; set; } = ClientKind.None;
 
     /// <summary>
     /// Implements <see cref="IReadOnlyNamedClientProfile.PrefixUser"/> and provides a setter.
@@ -60,9 +61,9 @@ public class NamedClientProfile : ClientProfile, IReadOnlyNamedClientProfile, ID
 
         string suffix = $" for {nameof(Id)}={Id}";
 
-        if (Api == ApiKind.None)
+        if (Kind == ClientKind.None)
         {
-            message = $"{nameof(Api)} cannot be {nameof(ApiKind.None)} {suffix}";
+            message = $"{nameof(Kind)} cannot be {nameof(ClientKind.None)} {suffix}";
             return false;
         }
 
@@ -95,13 +96,13 @@ public class NamedClientProfile : ClientProfile, IReadOnlyNamedClientProfile, ID
 
         return obj != null &&
             BaseAddress == obj.BaseAddress &&
-            Authentication == obj.Authentication &&
+            Secret == obj.Secret &&
             UserAgent == obj.UserAgent &&
             Timeout == obj.Timeout &&
             DisableSslValidation == obj.DisableSslValidation &&
 
             Id == obj.Id &&
-            Api == obj.Api &&
+            Kind == obj.Kind &&
             MaxText == obj.MaxText;
     }
 

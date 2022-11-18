@@ -18,6 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using KuiperZone.Implink.Api;
 using KuiperZone.Utility.Yaal;
 using KuiperZone.Utility.Yaal.Sinks;
 using KuiperZone.Utility.Yaap;
@@ -71,7 +72,7 @@ class Program
                 if (ForwardWait.HasValue)
                 {
                     Logger.Global.Write(SeverityLevel.Info, $"Force forward wait={ForwardWait.Value}");
-                    settings.ForwardWait = ForwardWait.Value;
+                    settings.WaitOnForward = ForwardWait.Value;
                 }
 
                 if (!string.IsNullOrEmpty(ProfileDirectory))
@@ -82,7 +83,7 @@ class Program
                 }
 
                 Logger.Global.Write(SeverityLevel.Info, $"settings={settings}");
-                settings.AssertValidity();
+                ((IValidity)settings).AssertValidity();
 
                 if (!string.IsNullOrWhiteSpace(settings.RemoteTerminatedUrl))
                 {

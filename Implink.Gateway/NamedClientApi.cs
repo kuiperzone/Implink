@@ -18,18 +18,20 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using System.Text;
 using KuiperZone.Implink.Api;
+using KuiperZone.Implink.Api.Thirdparty;
 
 namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// A class which implements <see cref="IClientApi"/>, where the underlying implementation is decided according to
+/// A class which implements <see cref="IMessagingApi"/>, where the underlying implementation is decided according to
 /// the profile given to the constructor. It accepts <see cref="IReadOnlyNamedClientProfile"/> in order to extend
 /// the client functionality.
 /// </summary>
-public class NamedClientApi : IEquatable<IReadOnlyNamedClientProfile>, IClientApi, IDisposable
+public class NamedClientApi : IEquatable<IReadOnlyNamedClientProfile>, IMessagingApi, IDisposable
 {
-    private readonly ClientApi _client;
+    private readonly IMessagingClient _client;
 
     /// <summary>
     /// Constructor in which the client is created according to <see cref="ApiKind"/> value given in the profile.
@@ -38,7 +40,8 @@ public class NamedClientApi : IEquatable<IReadOnlyNamedClientProfile>, IClientAp
     {
         profile.AssertValidity();
         Profile = profile;
-        _client = ClientFactory.Create(profile.Api, profile);
+
+        _client = ClientFactory.Create(profile.Kind, profile);
     }
 
     /// <summary>
@@ -47,29 +50,29 @@ public class NamedClientApi : IEquatable<IReadOnlyNamedClientProfile>, IClientAp
     public IReadOnlyNamedClientProfile Profile { get; }
 
     /// <summary>
-    /// Implements <see cref="IClientApi.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
+    /// Implements <see cref="IMessagingApi.PostMessage"/>.
     /// </summary>
-    public int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
+    public ImpResponse PostMessage(ImpMessage request)
     {
-        if (Profile.PrefixUser && !string.IsNullOrWhiteSpace(submit.UserName))
+        if (Profile.PrefixUser && !string.IsNullOrWhiteSpace(request.UserName))
         {
-            var prefix = submit.UserName + ": ";
+            var prefix = request.UserName + ": ";
 
-            if (!submit.Text.StartsWith(prefix))
+            if (!request.Text.StartsWith(prefix))
             {
                 // Make a clone
-                submit = new SubmitPost(submit);
-                submit.Text = prefix + submit.Text;
+                request = new ImpMessage(request);
+                request.Text = prefix + request.Text;
             }
         }
 
-        if (Profile.MaxText > 3 && submit.Text.Length > Profile.MaxText - 3)
+        if (Profile.MaxText > 3 && request.Text.Length > Profile.MaxText - 3)
         {
-            submit = new SubmitPost(submit);
-            submit.Text = submit.Text.Substring(0, Profile.MaxText - 3) + "...";
+            request = new ImpMessage(request);
+            request.Text = request.Text.Substring(0, Profile.MaxText - 3) + "...";
         }
 
-        return _client.SubmitPostRequest(submit, out response);
+        return _client.PostMessage(request);
     }
 
     /// <summary>
@@ -104,4 +107,17 @@ public class NamedClientApi : IEquatable<IReadOnlyNamedClientProfile>, IClientAp
         return Profile.GetHashCode();
     }
 
+    /// <summary>
+    /// Override.
+    /// </summary>
+    public override string ToString()
+    {
+        var sb = new StringBuilder(256);
+        sb.Append(Profile.Id);
+        sb.Append(" (");
+        sb.Append(Profile.Kind);
+        sb.Append(") : ");
+        sb.Append(Profile.BaseAddress);
+        return sb.ToString();
+    }
 }

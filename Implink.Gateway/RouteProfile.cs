@@ -25,7 +25,7 @@ namespace KuiperZone.Implink.Gateway;
 /// <summary>
 /// A serializable class which implements <see cref="IReadOnlyRouteProfile"/> and provides setters.
 /// </summary>
-public class RouteProfile : Jsonizable, IReadOnlyRouteProfile, IValidity
+public class RouteProfile : Jsonizable, IReadOnlyRouteProfile, IReadOnlySecretProfile, IDictionaryKey, IValidity
 {
     /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.Id"/> and provides a setter.
@@ -53,9 +53,14 @@ public class RouteProfile : Jsonizable, IReadOnlyRouteProfile, IValidity
     public string? Tags { get; set; }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyRouteProfile.Secret"/> and provides a setter.
+    /// Implements <see cref="IReadOnlySecret.Secret"/> and provides a setter.
     /// </summary>
     public string? Secret { get; set; }
+
+    /// <summary>
+    /// Implements <see cref="IReadOnlyRouteProfile.Replies"/> and provides a setter.
+    /// </summary>
+    public bool Replies { get; } = true;
 
     /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.ThrottleRate"/> and provides a setter.
@@ -71,9 +76,9 @@ public class RouteProfile : Jsonizable, IReadOnlyRouteProfile, IValidity
     }
 
     /// <summary>
-    /// Implements <see cref="Jsonizable.CheckValidity(out string)"/>.
+    /// Implements <see cref="IValidity.CheckValidity(out string)"/>.
     /// </summary>
-    public override bool CheckValidity(out string message)
+    public bool CheckValidity(out string message)
     {
         if (string.IsNullOrWhiteSpace(Id))
         {
@@ -110,6 +115,7 @@ public class RouteProfile : Jsonizable, IReadOnlyRouteProfile, IValidity
             IsRemoteOriginated == obj.IsRemoteOriginated &&
             Clients == obj.Clients &&
             Tags == obj.Tags &&
+            Replies == obj.Replies &&
             Secret == obj.Secret &&
             ThrottleRate == obj.ThrottleRate;
     }

@@ -18,16 +18,19 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using KuiperZone.Implink.Api;
+
 namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
 /// Simple request rate counter. Thread safe.
 /// </summary>
-public class RateCounter
+public class RateCounter : Jsonizable
 {
     private readonly object _syncObj = new();
     private DateTime _epoch = DateTime.UtcNow;
-    private long _counter;
+    private long _rateCounter;
+    private long _totalCounter;
 
     /// <summary>
     /// Constructor with maximum rate in requests per minute.
@@ -38,19 +41,52 @@ public class RateCounter
     }
 
     /// <summary>
+    /// Gets requests per minute, as signaled by a call to <see cref="Increment"/>.
+    /// </summary>
+    public double Rate
+    {
+        get
+        {
+            lock (_syncObj)
+            {
+                return GetRateNoSync();
+            }
+        }
+    }
+
+    /// <summary>
     /// Gets the maximum rate in requests per minute. A zero or negative value disables throttling.
     /// </summary>
     public int MaxRate { get; }
 
     /// <summary>
+    /// Gets total counter.
+    /// </summary>
+    public double Total
+    {
+        get
+        {
+            lock (_syncObj)
+            {
+                return _totalCounter;
+            }
+        }
+    }
+
+    /// <summary>
     /// Resets rate.
     /// </summary>
-    public void Reset()
+    public void Reset(bool total = false)
     {
         lock (_syncObj)
         {
             _epoch = DateTime.UtcNow;
-            _counter = 0;
+            _rateCounter = 0;
+
+            if (total)
+            {
+                _totalCounter = 0;
+            }
         }
     }
 
@@ -61,18 +97,8 @@ public class RateCounter
     {
         lock (_syncObj)
         {
-            _counter += 1;
-        }
-    }
-
-    /// <summary>
-    /// Gets requests per minute, as signaled by a call to <see cref="Increment"/>.
-    /// </summary>
-    public double GetRate()
-    {
-        lock (_syncObj)
-        {
-            return GetRateNoSync();
+            _rateCounter += 1;
+            _totalCounter += 1;
         }
     }
 
@@ -91,11 +117,12 @@ public class RateCounter
 
             if (inc)
             {
-                _counter += 1;
+                _rateCounter += 1;
+                _totalCounter += 1;
             }
-        }
 
-        return false;
+            return false;
+        }
     }
 
     private double GetRateNoSync()
@@ -106,10 +133,10 @@ public class RateCounter
         if (sec < 0 || sec >= 60)
         {
             _epoch = now;
-            _counter = 0;
+            _rateCounter = 0;
         }
 
-        return _counter;
+        return _rateCounter;
     }
 
 }

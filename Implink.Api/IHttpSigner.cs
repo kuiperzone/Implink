@@ -31,5 +31,5 @@ public interface IHttpSigner
     /// such as URI and method, are expected to be pre-populated with values the routine may require. The
     /// implementation should be reentrent, but need not be lock-free. It may throw any exception on failure.
     /// </summary>
-    void Add(HttpRequestMessage request);
+    void AddHeaders(HttpRequestMessage request);
 }

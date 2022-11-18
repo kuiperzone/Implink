@@ -19,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 using KuiperZone.Implink.Api;
+using KuiperZone.Implink.Api.Thirdparty;
 
 namespace KuiperZone.Implink.Gateway;
 
@@ -28,14 +29,16 @@ namespace KuiperZone.Implink.Gateway;
 public interface IReadOnlyNamedClientProfile : IReadOnlyClientProfile, IDictionaryKey, IValidity, IEquatable<IReadOnlyNamedClientProfile>
 {
     /// <summary>
-    /// Gets the mandatory unique identifier for the client. Example "LocalElgg", "Twitter1" etc.
+    /// Gets the mandatory unique identifier for the client. It is suggested that, for local services (i.e. those
+    /// servicing incoming remote-originated trafffic), the word "Local" be either prefixed or suffixed to the name.
+    /// Example "LocalElgg", "Twitter1" etc.
     /// </summary>
     string Id { get; }
 
     /// <summary>
-    /// Gets the mandatory API technology kind. Cannot be None.
+    /// Gets the mandatory client API implementation kind. Cannot be None.
     /// </summary>
-    ApiKind Api { get; }
+    ClientKind Kind { get; }
 
     /// <summary>
     /// Gets whether to prefix username to message text. This is done because the "user account" provisioned

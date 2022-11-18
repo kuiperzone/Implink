@@ -21,21 +21,15 @@
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// A base class for response body content.
+/// Interface for a profile with "secret", i.e. authentication key information.
 /// </summary>
-public class ResponseMessage : Jsonizable, IValidity
+public interface IReadOnlySecretProfile
 {
     /// <summary>
-    /// Gets or sets an optional error reason message.
+    /// Gets the vendor specific secret authentication properties. The value is a key-value sequence seperated by
+    /// comma, i.e. of form "Key1=Value1,Key2=Value2". The caller should assume keys and values are case-sensitive.
+    /// For IMPv1, the "SECRET" value must be given, specifying a minimum of 12 random characters.
+    /// Example: "SECRET=Fyhf$34hjfTh94".
     /// </summary>
-    public string? ErrorReason { get; set; }
-
-    /// <summary>
-    /// Implements <see cref="Jsonizable.CheckValidity(out string)"/> but always returns true.
-    /// </summary>
-    public override bool CheckValidity(out string message)
-    {
-        message = "";
-        return true;
-    }
+    string? Secret { get; }
 }

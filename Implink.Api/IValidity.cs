@@ -37,5 +37,12 @@ public interface IValidity
     /// <see cref="ArgumentException"/>.
     /// </summary>
     /// <exception cref="ArgumentException">Failure message</exception>
-    void AssertValidity();
+    void AssertValidity()
+    {
+        if (!CheckValidity(out string message))
+        {
+            throw new ArgumentException(message);
+        }
+    }
+
 }

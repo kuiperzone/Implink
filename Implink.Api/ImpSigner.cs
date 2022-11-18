@@ -28,13 +28,12 @@ namespace KuiperZone.Implink.Api;
 /// </summary>
 public class ImpSigner : IHttpSigner
 {
-    private readonly ImpSecret _secret;
-    private readonly ApiKind _version;
+    private readonly ImpAuthentication _secret;
 
     /// <summary>
     /// Constructor with key instance.
     /// </summary>
-    public ImpSigner(ImpSecret secret)
+    public ImpSigner(ImpAuthentication secret)
     {
         _secret = secret;
     }
@@ -42,7 +41,7 @@ public class ImpSigner : IHttpSigner
     /// <summary>
     /// Implements <see cref="IHttpSigner.Add(HttpRequestMessage request)"/>.
     /// </summary>
-    public void Add(HttpRequestMessage request)
+    public void AddHeaders(HttpRequestMessage request)
     {
         string? body = null;
 
@@ -55,10 +54,10 @@ public class ImpSigner : IHttpSigner
         var sign = _secret.GetSignature(nonce, body, out string timestamp);
 
         // Future proof - a version ID
-        request.Headers.Add("IMP_API", _version.ToString());
-        request.Headers.Add(ImpSecret.NONCE_KEY, nonce);
-        request.Headers.Add(ImpSecret.TIMESTAMP_KEY, timestamp);
-        request.Headers.Add(ImpSecret.SIGN_KEY, sign);
+        request.Headers.Add("IMP_API", "ImpV1");
+        request.Headers.Add(ImpAuthentication.NONCE_KEY, nonce);
+        request.Headers.Add(ImpAuthentication.TIMESTAMP_KEY, timestamp);
+        request.Headers.Add(ImpAuthentication.SIGN_KEY, sign);
     }
 
     private static string GenerateNonce(int count = 16)

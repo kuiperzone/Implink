@@ -37,7 +37,7 @@ public class ImpServer : IDisposable
     /// <summary>
     /// Constructor. Does not dispose of app or database.
     /// </summary>
-    public ImpServer(string url, bool isRemote, ImpSecret? keys = null)
+    public ImpServer(string url, bool isRemote, ImpAuthentication? keys = null)
     {
         IsRemote = isRemote;
         ServerUrl = url;
@@ -77,7 +77,7 @@ public class ImpServer : IDisposable
     /// <summary>
     /// Gets authentication keys.
     /// </summary>
-    public ImpSecret? Keys { get; }
+    public ImpAuthentication? Keys { get; }
 
     /// <summary>
     /// Implements dispose.

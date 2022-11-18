@@ -21,7 +21,7 @@
 namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// Subclass of <see cref="ProfileConsumerDictionary"/> for IMP clients.
+/// Subclass of <see cref="ProfileConsumerDictionary{T1,T2}"/> for <see cref="NamedClientApi"/> classes.
 /// </summary>
 public class ClientDictionary : ProfileConsumerDictionary<IReadOnlyNamedClientProfile, NamedClientApi>
 {

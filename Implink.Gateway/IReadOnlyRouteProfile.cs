@@ -23,9 +23,10 @@ using KuiperZone.Implink.Api;
 namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// Readonly route data.
+/// Readonly route data. Inherits <see cref="IReadOnlySecretProfile"/> in order supply secret for incoming
+/// remote-originated authentication. It is not used for local originated remote-terminated traffic.
 /// </summary>
-public interface IReadOnlyRouteProfile : IDictionaryKey, IValidity, IEquatable<IReadOnlyRouteProfile>
+public interface IReadOnlyRouteProfile : IReadOnlySecretProfile, IDictionaryKey, IValidity, IEquatable<IReadOnlyRouteProfile>
 {
     /// <summary>
     /// Gets the mandatory unique identifier. For remote-terminated routes, this is a group name and corresponds to
@@ -49,11 +50,6 @@ public interface IReadOnlyRouteProfile : IDictionaryKey, IValidity, IEquatable<I
     bool Enabled { get; }
 
     /// <summary>
-    /// Gets a mandatory comma separated list of <see cref="IReadOnlyNamedClientProfile.Id"/> values.
-    /// </summary>
-    string Clients { get; }
-
-    /// <summary>
     /// Gets the optional tags (or categories). This may contain a comma separated case insensitive list of tag
     /// or category names. If an incoming message matches the profile Id, it must also match one of these values,
     /// otherwise the request will be rejected. If <see cref="Tag"/> is empty or null, it does nothing.
@@ -62,12 +58,16 @@ public interface IReadOnlyRouteProfile : IDictionaryKey, IValidity, IEquatable<I
     string? Tags { get; }
 
     /// <summary>
-    /// Gets the mandatory API secret used for authentication of incoming remote-originated requests.
-    /// It should not be populated for remote-terminated routes. Note that each <see cref="GatewayId"/> should
-    /// have a unique secret value comprising a minimum of 12 random characters (excluding comma and space), to be
-    /// shared with the remote party.
+    /// Gets a mandatory comma separated list of <see cref="IReadOnlyNamedClientProfile.Id"/> values.
     /// </summary>
-    string? Secret { get; }
+    string Clients { get; }
+
+    /// <summary>
+    /// Support reply messages where possible, i.e. message with a <see cref="ImpMessage.ParentMsgId"/> value.
+    /// The default is true. Note that replies can only be supported with compatible clients, namely IMP clients only.
+    /// This is because the sender must define the original message <see cref="ImpMessage.MsgId"/>.
+    /// </summary>
+    bool Replies { get; }
 
     /// <summary>
     /// Gets a maximum request rate in terms of requests per minute. Incoming requests which exceed this rate will

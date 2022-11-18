@@ -31,9 +31,9 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity
     public string BaseAddress { get; set; } = "";
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyClientProfile.Authentication"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyClientProfile.Secret"/> and provides a setter.
     /// </summary>
-    public string Authentication { get; set; } = "";
+    public string Secret { get; set; } = "";
 
     /// <summary>
     /// Implements <see cref="IReadOnlyClientProfile.UserAgent"/> and provides a setter.
@@ -51,9 +51,9 @@ public class ClientProfile : Jsonizable, IReadOnlyClientProfile, IValidity
     public bool DisableSslValidation { get; set; }
 
     /// <summary>
-    /// Implements <see cref="Jsonizable.CheckValidity(out string)"/>.
+    /// Implements <see cref="IValidity.CheckValidity(out string)"/>.
     /// </summary>
-    public override bool CheckValidity(out string message)
+    public virtual bool CheckValidity(out string message)
     {
         if (string.IsNullOrWhiteSpace(BaseAddress))
         {

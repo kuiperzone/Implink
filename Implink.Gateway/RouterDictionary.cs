@@ -18,33 +18,37 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-using System.Net;
-
-namespace KuiperZone.Implink.Api;
+namespace KuiperZone.Implink.Gateway;
 
 /// <summary>
-/// Custom exception class. Indicates failure carrying out request.
+/// Subclass of <see cref="ProfileConsumerDictionary{T1,T2}"/> for <see cref="MessageRouter"/> classes.
 /// </summary>
-public class ImpException : InvalidOperationException
+public class RouterDictionary : ProfileConsumerDictionary<IReadOnlyRouteProfile, MessageRouter>
 {
     /// <summary>
     /// Constructor.
     /// </summary>
-    public ImpException(string message = "Request failed", int code = 400)
-        : base(message)
+    public RouterDictionary(bool waitOnForward = false)
     {
-        StatusCode = code;
-    }
-
-    public ImpException(string message, HttpStatusCode code)
-        : base(message)
-    {
-        StatusCode = (int) code;
+        WaitOnForward = waitOnForward;
     }
 
     /// <summary>
-    /// Gets the status code.
+    /// Gets the client dictionary.
     /// </summary>
-    public int StatusCode { get; }
+    public ClientDictionary Clients { get; } = new();
 
+    /// <summary>
+    /// Gets whether routes should wait on forward.
+    /// </summary>
+    public bool WaitOnForward { get; }
+
+    /// <summary>
+    /// Implements.
+    /// </summary>
+    protected override MessageRouter CreateConsumer(IReadOnlyRouteProfile profile)
+    {
+        return new(profile, Clients, WaitOnForward);
+    }
 }
+

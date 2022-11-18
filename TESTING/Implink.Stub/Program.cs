@@ -85,7 +85,7 @@ class Program
 
                 // Remote server verifies athentication
                 WriteRoutes(true);
-                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpSecret(CreateImpProfile(RemoteUrl, true, false)));
+                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpAuthentication(CreateImpProfile(RemoteUrl, true, false)));
 
                 // Local on LAN, so no authentication
                 WriteRoutes(false);
@@ -161,7 +161,7 @@ class Program
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid category)");
         sub = CreateSubmit(rt, true);
-        sub.Category = "InvalidCategory";
+        sub.Tag = "InvalidCategory";
         result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid authentication)");
@@ -265,7 +265,7 @@ class Program
         var name = hasCategory ? TestNameWithCatId : TestNameId;;
         s.GroupId = name;
         s.UserName = name;
-        s.Category = hasCategory ? TestCategory : null;
+        s.Tag = hasCategory ? TestCategory : null;
         s.MsgId = msgId;
         s.Text = "Test message";
 

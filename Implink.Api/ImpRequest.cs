@@ -21,13 +21,13 @@
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Minimal interface which provide client request calls.
+/// A base class for IMP request JSON body content.
 /// </summary>
-public interface IClientApi
+public abstract class ImpRequest : Jsonizable, IValidity
 {
     /// <summary>
-    /// Sends the <see cref="SubmitPost"/> message and returns the status code.
-    /// Any exception will be interepted as InternalServerError 500.
+    /// Abstract <see cref="IValidity.CheckValidity(out string)"/>.
     /// </summary>
-    int SubmitPostRequest(SubmitPost submit, out SubmitResponse response);
+    public abstract bool CheckValidity(out string message);
+
 }

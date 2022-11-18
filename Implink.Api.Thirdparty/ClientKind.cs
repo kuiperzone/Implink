@@ -18,12 +18,12 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
-namespace KuiperZone.Implink.Api;
+namespace KuiperZone.Implink.Api.Thirdparty;
 
 /// <summary>
 /// Defines supported request APIs. Values are stored in database and should be explicitly defined.
 /// </summary>
-public enum ApiKind
+public enum ClientKind
 {
     /// <summary>
     /// A placeholder for an invalid value only. Not a valid protocol.
@@ -54,21 +54,20 @@ public static class ApiKindExt
     /// <summary>
     /// Returns true if kind is an IMP protocol (any version).
     /// </summary>
-    public static bool IsImp(this ApiKind kind)
+    public static bool IsImp(this ClientKind kind)
     {
-        return kind == ApiKind.ImpV1;
+        return kind == ClientKind.ImpV1;
     }
 
     /// <summary>
     /// Asserts IsImp() is true.
     /// </summary>
     /// <exception cref="ArgumentException">Not a valid IMP protocol</exception>
-    public static void AssetImp(this ApiKind kind)
+    public static void AssetImp(this ClientKind kind)
     {
         if (!IsImp(kind))
         {
             throw new ArgumentException("Not a valid IMP protocol");
         }
     }
-
 }

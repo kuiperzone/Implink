@@ -134,7 +134,7 @@ public sealed class ProfileDatabase : IDisposable
     /// <summary>
     /// Queries all clients. The result is a new instance on each call.
     /// </summary>
-    public IEnumerable<NamedClientProfile> QueryAllClients()
+    public IEnumerable<NamedClientProfile> QueryClients()
     {
         if (_directory != null)
         {
@@ -147,11 +147,21 @@ public sealed class ProfileDatabase : IDisposable
     /// <summary>
     /// Queries all remote-terminated rotes. The result is a new instance on each call.
     /// </summary>
-    public IEnumerable<RouteProfile> QueryAllRoutes()
+    public IEnumerable<RouteProfile> QueryRoutes(bool remoteOriginated)
     {
         if (_directory != null)
         {
-            return LoadFile<RouteProfile>(RouteTable);
+            var temp = new List<RouteProfile>();
+
+            foreach (var item in LoadFile<RouteProfile>(RouteTable))
+            {
+                if (item.IsRemoteOriginated == remoteOriginated)
+                {
+                    temp.Add(item);
+                }
+            }
+
+            return temp;
         }
 
         return Query<RouteProfile>("SELECT STATEMENT TBD");

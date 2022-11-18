@@ -21,9 +21,13 @@
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// A base class for request body content.
+/// Minimal interface which a provides messaging request operation.
 /// </summary>
-public abstract class RequestMessage : Jsonizable, IValidity
+public interface IMessagingApi
 {
-
+    /// <summary>
+    /// Sends <see cref="ImpMessage"/> and returns the response.
+    /// It should not throw, but return InternalServerError 500 as the response.
+    /// </summary>
+    ImpResponse PostMessage(ImpMessage request);
 }

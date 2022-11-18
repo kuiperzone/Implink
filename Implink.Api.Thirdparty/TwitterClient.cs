@@ -21,14 +21,16 @@
 using System.Globalization;
 using System.Net;
 using CoreTweet;
+using KuiperZone.Implink.Api.Util;
+using KuiperZone.Utility.Yaal;
 
 namespace KuiperZone.Implink.Api.Thirdparty;
 
 /// <summary>
-/// Concrete implementation of <see cref="ClientApi"/> for the Twitter API. The API requires
+/// Implementation of <see cref="IMessagingClient"/> for the Twitter API. The API requires
 /// the following authentication key-values be provisioned: "consumer_key", "consumer_secret".
 /// </summary>
-public sealed class TwitterClient : ClientApi, IClientApi
+public sealed class TwitterClient : IMessagingClient, IDisposable
 {
     // We are using third-party package:
     // https://github.com/CoreTweet/CoreTweet
@@ -46,46 +48,70 @@ public sealed class TwitterClient : ClientApi, IClientApi
     /// Constructor.
     /// </summary>
     public TwitterClient(IReadOnlyClientProfile profile)
-        : base(profile)
     {
-        _key = AuthDictionary["consumer_key"];
-        _secret = AuthDictionary["consumer_secret"];
+        profile.AssertValidity();
+        Profile = profile;
+
+        var temp = StringParser.ToDictionary(Profile.Secret);
+
+        // Will throw if not configured
+        _key = temp["consumer_key"];
+        _secret = temp["consumer_secret"];
     }
 
     /// <summary>
-    /// Implements <see cref="ClientApi.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
+    /// Implements <see cref="IMessagingClient.Profile"/>.
     /// </summary>
-    public override int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
+    public IReadOnlyClientProfile Profile { get; }
+
+    /// <summary>
+    /// Implements <see cref="IMessagingApi.PostMessage(ImpMessage)"/>.
+    /// </summary>
+    public ImpResponse PostMessage(ImpMessage request)
     {
-        response = new();
+        Logger.Global.Debug("Sending: " + request.ToString());
+        ((IValidity)request).AssertValidity();
 
         var temp = new Dictionary<string, string>();
-        temp.Add("status", submit?.Text ?? "");
+        temp.Add("status", request.Text ?? "");
+
+        if (!string.IsNullOrEmpty(request.ParentMsgId))
+        {
+            if (!long.TryParse(request.ParentMsgId, out long _))
+            {
+                return new ImpResponse(HttpStatusCode.BadRequest, $"{nameof(request.ParentMsgId)} not a Twitter id)");
+            }
+
+            temp.Add("in_reply_to_status_id", request.ParentMsgId);
+        }
 
         try
         {
             lock (_syncObj)
             {
                 var rslt = GetTokenNoSync().Statuses.UpdateAsync(temp, new CancellationTokenSource(Profile.Timeout).Token).Result;
-                response.MsgId = rslt.Id.ToString(CultureInfo.InvariantCulture);
-                return (int)HttpStatusCode.OK;
+                return new ImpResponse(HttpStatusCode.OK, rslt.Id.ToString(CultureInfo.InvariantCulture));
             }
         }
         catch (TwitterException e)
         {
-            response.ErrorReason = e.Message;
-            return (int)e.Status;
+            return new ImpResponse(e.Status, e.Message);
         }
         catch (TaskCanceledException e) when (e.InnerException is TimeoutException)
         {
-            response.ErrorReason = e.InnerException.Message;
-            return (int)HttpStatusCode.RequestTimeout;
+            return new ImpResponse(HttpStatusCode.RequestTimeout, e.InnerException.Message);
         }
         catch (Exception e)
         {
-            response.ErrorReason = e.InnerException?.Message ?? e.Message;
-            return (int)HttpStatusCode.InternalServerError;
+            return new ImpResponse(HttpStatusCode.InternalServerError, e.InnerException?.Message ?? e.Message);
         }
+    }
+
+    /// <summary>
+    /// Implements IDisposable.
+    /// </summary>
+    public void Dispose()
+    {
     }
 
     private OAuth2Token GetTokenNoSync()

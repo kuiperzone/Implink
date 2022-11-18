@@ -23,20 +23,12 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// Readonly client configuration.
 /// </summary>
-public interface IReadOnlyClientProfile : IValidity
+public interface IReadOnlyClientProfile : IReadOnlySecretProfile, IValidity
 {
     /// <summary>
     /// Gets the mandatory API base URL. i.e. "https://api.twitter.com/2/".
     /// </summary>
     string BaseAddress { get; }
-
-    /// <summary>
-    /// Gets the vendor specific authentication properties. The value is a key-value sequence seperated by
-    /// comma, i.e. of form "Key1=Value1,Key2=Value2". The caller should assume keys and values are case-sensitive.
-    /// For IMPv1, the "SECRET" value must be given, specifying a minimum of 12 random characters.
-    /// Example: "SECRET=Fyhf$34hjfTh94".
-    /// </summary>
-    string Authentication { get; }
 
     /// <summary>
     /// Gets optional user-agent string. Used where supported by the API.

@@ -23,11 +23,11 @@ namespace KuiperZone.Implink.Api.Util;
 /// <summary>
 /// Static utility.
 /// </summary>
-public static class DictionaryParser
+public static class StringParser
 {
     /// <summary>
     /// Parses string of form "key1=value1,key2=value2" and returns a dictionary instance.
-    /// An empty or null string results in an empty dictionary.
+    /// An empty or null string results in an empty dictionary. The resulting dictionary is case insensitive.
     /// </summary>
     /// <exception cref="ArgumentException">Invalid dictionary key-value pair</exception>
     /// <exception cref="ArgumentException">Key already exists</exception>
@@ -64,27 +64,17 @@ public static class DictionaryParser
 
     /// <summary>
     /// Parses comma separated string and returns hash set. An empty or null string results in an empty set.
+    /// The resulting set is case insensitive.
     /// </summary>
-    public static HashSet<string> ToSet(string? s, bool trimHash = false)
+    public static HashSet<string> ToSet(string? s)
     {
-        var hash = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
-
         if (!string.IsNullOrWhiteSpace(s))
         {
-            foreach (var item in s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                var temp = item;
-
-                if (trimHash)
-                {
-                    temp = temp.TrimStart('#');
-                }
-
-                hash.Add(temp);
-            }
+            var split = s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return new HashSet<string>(split, StringComparer.InvariantCultureIgnoreCase);
         }
 
-        return hash;
+        return new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
     }
 
 }

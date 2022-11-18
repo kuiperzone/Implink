@@ -29,9 +29,10 @@ using Microsoft.Extensions.Primitives;
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Immutable class used in construction of IMP client and servers.
+/// Immutable class used in construction of IMP client and servers. It holds the IMP specific "secret" information,
+/// and verifying request information, and works with <see <see cref="ImpSigner"/> to perform request signing.
 /// </summary>
-public class ImpSecret
+public class ImpAuthentication
 {
     private readonly byte[] _secret;
 
@@ -50,29 +51,25 @@ public class ImpSecret
     /// </summary>
     public const string SIGN_KEY = "IMP_SIGN";
 
+    public ImpAuthentication()
+    {
+        _secret = Array.Empty<byte>();
+    }
 
     /// <summary>
-    /// Constructor with secret and delta seconds. Provided empty or null to disable authentication.
+    /// Constructor with secret and delta seconds. Also serves as default constructor, where authication is disabled.
     /// </summary>
-    public ImpSecret(string? secret = null, int deltaSec = 30)
+    public ImpAuthentication(string? secret, int deltaSec = 30)
     {
         _secret = Encoding.UTF8.GetBytes(secret ?? "");
         AllowedDeltaSeconds = deltaSec;
     }
 
     /// <summary>
-    /// Constructor with <see cref="IReadOnlyClientProfile"/> instance.
+    /// Constructor with <see cref="IReadOnlySecretProfile"/> instance.
     /// </summary>
-    public ImpSecret(IReadOnlyClientProfile profile, int deltaSec = 30)
+    public ImpAuthentication(IReadOnlySecretProfile profile, int deltaSec = 30)
         : this(GetAuth(profile, "SECRET"), deltaSec)
-    {
-    }
-
-    /// <summary>
-    /// Constructor with <see cref="ClientApi"/> instace.
-    /// </summary>
-    public ImpSecret(ClientApi client, int deltaSec = 30)
-        : this(GetAuth(client, "SECRET"), deltaSec)
     {
     }
 
@@ -80,7 +77,7 @@ public class ImpSecret
     /// Gets the maximum time delta a timetamp is allowed to differ from system time.
     /// A negative or zero value disables.
     /// </summary>
-    public readonly int AllowedDeltaSeconds;
+    public int AllowedDeltaSeconds {get;} = 30;
 
     /// <summary>
     /// Gets whether a private key string was provided.
@@ -132,27 +129,31 @@ public class ImpSecret
     {
         if (IsAuthenticationEnabled)
         {
-            string nonce = GetHeader(headers, NONCE_KEY);
-            string timestamp = GetHeader(headers, TIMESTAMP_KEY);
-            string sign = GetHeader(headers, SIGN_KEY);
+            var nonce = GetHeader(headers, NONCE_KEY);
+
+            if (nonce == null)
+            {
+                return $"Header {NONCE_KEY} undefined";
+            }
+
+            var timestamp = GetHeader(headers, TIMESTAMP_KEY);
+
+            if (timestamp == null)
+            {
+                return $"Header {TIMESTAMP_KEY} undefined";
+            }
+
+            var sign = GetHeader(headers, SIGN_KEY);
+
+            if (sign == null)
+            {
+                return $"Header {SIGN_KEY} undefined";
+            }
+
             return Verify(sign, timestamp, nonce, body);
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Throws if authentication fails.
-    /// </summary>
-    /// <exception cref="ImpException">Authentication failed</exception>
-    public void Assert(IDictionary<string, StringValues> headers, string body)
-    {
-        var msg = Verify(headers, body);
-
-        if (msg != null)
-        {
-            throw new ImpException(msg, (int)HttpStatusCode.Unauthorized);
-        }
     }
 
     /// <summary>
@@ -186,41 +187,15 @@ public class ImpSecret
         return "";
     }
 
-    private static string GetAuth(IReadOnlyClientProfile p, string key)
+    private static string GetAuth(IReadOnlySecretProfile s, string key)
     {
-        return DictionaryParser.ToDictionary(p.Authentication).GetValueOrDefault(key, "");
+        return StringParser.ToDictionary(s.Secret).GetValueOrDefault(key, "");
     }
 
-    private static string GetAuth(ClientApi c, string key)
-    {
-        return c.AuthDictionary.GetValueOrDefault(key, "");
-    }
-
-    private static string GetHeader(IDictionary<string, StringValues> headers, string key)
+    private static string? GetHeader(IDictionary<string, StringValues> headers, string key)
     {
         var rslt = headers[key].ToString();
-
-        if (rslt.Length != 0)
-        {
-            return rslt;
-        }
-
-        throw new ImpException($"Header {key} undefined");
-    }
-
-    private static string GetHeader(HttpRequestHeaders headers, string key)
-    {
-        if (headers.TryGetValues(key, out IEnumerable<string>? values))
-        {
-            var rslt = values.FirstOrDefault("");
-
-            if (rslt.Length != 0)
-            {
-                return rslt;
-            }
-        }
-
-        throw new ImpException($"Header {key} undefined");
+        return !string.IsNullOrEmpty(rslt) ? rslt : null;
     }
 
 }

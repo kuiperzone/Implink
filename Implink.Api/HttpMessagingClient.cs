@@ -21,6 +21,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using KuiperZone.Implink.Api.Util;
 using KuiperZone.Utility.Yaal;
 
 namespace KuiperZone.Implink.Api;
@@ -29,80 +30,93 @@ namespace KuiperZone.Implink.Api;
 /// Abstract base class which extends <see cref="ClientApi"/> to implement an internal
 /// <see cref="HttpClient"/> instance. It does not, however, implement the API conversion.
 /// </summary>
-public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
+public abstract class HttpMessagingClient : IMessagingClient, IDisposable
 {
     private readonly object _synLock = new();
     private readonly string? _contentType;
     private volatile HttpClient? v_client;
 
     /// <summary>
-    /// Constructor. If factory is null, the instance will have no signer.
+    /// Constructor. If factory is null, the instance will not be able to sign messages.
     /// </summary>
-    public HttpClientApi(IReadOnlyClientProfile profile, ISignerFactory? factory, string? contentType = null)
-        : base(profile)
+    public HttpMessagingClient(IReadOnlyClientProfile profile, ISignerFactory? factory, string? contentType = null)
     {
+        profile.AssertValidity();
+
+        Profile = profile;
         Signer = factory?.Create(this);
         _contentType = contentType;
     }
 
     /// <summary>
-    /// Gets the instance of <see cref="IHttpSigner"/>. The value may be null if none supplied on construction.
+    /// Implements <see cref="IMessagingClient.Profile"/>.
+    /// </summary>
+    public IReadOnlyClientProfile Profile { get; }
+
+    /// <summary>
+    /// Gets the instance of <see cref="IHttpSigner"/>. The value may be null if no factory was
+    /// supplied on construction.
     /// </summary>
     public readonly IHttpSigner? Signer;
 
     /// <summary>
-    /// Implements <see cref="ClientApi.SubmitPostRequest(SubmitPost, out SubmitResponse)"/>.
+    /// Implements <see cref="IMessagingApi.PostMessage(ImpMessage)"/>.
     /// </summary>
-    public override int SubmitPostRequest(SubmitPost submit, out SubmitResponse response)
+    public ImpResponse PostMessage(ImpMessage request)
     {
-        Logger.Global.Debug(submit.ToString());
-        var msg = ToSubmitRequest(submit);
+        Logger.Global.Debug("Sending: " + request.ToString());
+        var msg = TranslateRequest(request);
 
-        Logger.Global.Debug("Sending");
         var tuple = SignAndSend(msg);
+        Logger.Global.Debug($"Tuple {tuple}");
 
-        Logger.Global.Debug("Translate response");
-        Logger.Global.Debug(tuple.Item2);
-        response = ToSubmitResponse(tuple.Item2);
-
-        if (string.IsNullOrEmpty(response.ErrorReason))
-        {
-            response.ErrorReason ??= tuple.Item1.ToString();
-        }
-
-        return (int)tuple.Item1;
+        Logger.Global.Debug($"Translating response");
+        return TranslateResponse(tuple.Item1, tuple.Item2);
     }
 
     /// <summary>
-    /// Must be implemented to translate <see cref="SubmitPost"/> to HttpRequestMessage.
+    /// Implements the disposal pattern.
     /// </summary>
-    protected abstract HttpRequestMessage ToSubmitRequest(SubmitPost submit);
-
-    /// <summary>
-    /// Must be implemented to translate response body text to <see cref="SubmitResponse"/>.
-    /// </summary>
-    protected abstract SubmitResponse ToSubmitResponse(string response);
-
-    /// <summary>
-    /// Calls <see cref="IHttpSigner.Add"/> where <see cref="ClientApi.AuthDictionary"/> is not empty,
-    /// and returns the result of <see cref="Send"/>. This method is provided for convenience and is called
-    /// by the default implementation of <see cref="ClientApi.SubmitPostRequest"/>. It does not throw.
-    /// </summary>
-    protected Tuple<HttpStatusCode, string> SignAndSend(HttpRequestMessage request)
+    public void Dispose()
     {
+        GC.SuppressFinalize(this);
+        Dispose(true);
+    }
+
+    /// <summary>
+    /// Disposes of client.
+    /// </summary>
+    protected virtual void Dispose(bool disposing)
+    {
+        v_client?.Dispose();
+    }
+
+    /// <summary>
+    /// Must be implemented to translate <see cref="ImpMessage"/> to HttpRequestMessage.
+    /// </summary>
+    protected abstract HttpRequestMessage TranslateRequest(ImpMessage request);
+
+    /// <summary>
+    /// Must be implemented to translate the incoming response body to an instance of <see cref="ImpResponse"/>.
+    /// If status is not 200 OK, the body string will contain an "error reason" rather than the body (if any).
+    /// </summary>
+    protected abstract ImpResponse TranslateResponse(HttpStatusCode status, string body);
+
+    private Tuple<HttpStatusCode, string> SignAndSend(HttpRequestMessage request)
+    {
+        // Calls <see cref="IHttpSigner.Add"/> where <see cref="Signer"/> is not null, and returns the result of
+        // <see cref="Send"/>. This method is provided for convenience and is called by <see cref="PostMessage"/>.
+        // It does not throw.
         Logger.Global.Debug("Signing...");
-        Signer?.Add(request);
+        Signer?.AddHeaders(request);
         return Send(request);
     }
 
-    /// <summary>
-    /// Sends the request and waits <see cref="IReadOnlyClientProfile.Timeout"/> milliseconds for a response.
-    /// The call does not throw, but always returns an instance of <see cref="SendTuple"/>. If the implementation of
-    /// <see cref="ClientApi.SubmitPostRequest"/> does not call <see cref="SignAndSend"/>, it should call
-    /// this method directly.
-    /// </summary>
-    protected Tuple<HttpStatusCode, string> Send(HttpRequestMessage request)
+    private Tuple<HttpStatusCode, string> Send(HttpRequestMessage request)
     {
+        // Sends the request and waits <see cref="IReadOnlyClientProfile.Timeout"/> milliseconds for a response.
+        // The call does not throw, but always returns a tuple. On 200 success, the tuple string contains the response
+        // body text (if any). On failure, the string contain an error string.
         Logger.Global.Debug("Sending...");
 
         try
@@ -110,9 +124,10 @@ public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
             string body = "";
             var resp = GetClientOnDemaned().Send(request, HttpCompletionOption.ResponseContentRead);
 
+            Logger.Global.Debug("Reading response");
+
             if (resp.Content != null)
             {
-                Logger.Global.Debug("Reading response");
                 body = new StreamReader(resp.Content.ReadAsStream(), Encoding.UTF8, false).ReadToEnd();
             }
 
@@ -122,32 +137,24 @@ public abstract class HttpClientApi : ClientApi, IClientApi, IDisposable
         {
             Logger.Global.Debug(e);
             var code = e.StatusCode ?? HttpStatusCode.InternalServerError;
-            var resp = new ResponseMessage();
-            resp.ErrorReason = e.InnerException?.Message ?? e.Message;
-            return Tuple.Create(code, resp.ToString());
+            var reason = e.InnerException?.Message ?? e.Message;
+            reason ??= code.ToString();
+            return Tuple.Create(code, reason);
         }
         catch (TaskCanceledException e) when (e.InnerException is TimeoutException)
         {
             Logger.Global.Debug(e);
-            var resp = new ResponseMessage();
-            resp.ErrorReason = e.InnerException?.Message ?? e.Message;
-            return Tuple.Create(HttpStatusCode.RequestTimeout, resp.ToString());
+            var reason = e.InnerException?.Message ?? e.Message;
+            reason ??= HttpStatusCode.RequestTimeout.ToString();
+            return Tuple.Create(HttpStatusCode.RequestTimeout, reason);
         }
         catch (Exception e)
         {
             Logger.Global.Debug(e);
-            var resp = new ResponseMessage();
-            resp.ErrorReason = e.InnerException?.Message ?? e.Message;
-            return Tuple.Create(HttpStatusCode.InternalServerError, resp.ToString());
+            var reason = e.InnerException?.Message ?? e.Message;
+            reason ??= HttpStatusCode.InternalServerError.ToString();
+            return Tuple.Create(HttpStatusCode.InternalServerError, reason);
         }
-    }
-
-    /// <summary>
-    /// Overriding method must call base method.
-    /// </summary>
-    protected override void Dispose(bool disposing)
-    {
-        v_client?.Dispose();
     }
 
     private HttpClient GetClientOnDemaned()

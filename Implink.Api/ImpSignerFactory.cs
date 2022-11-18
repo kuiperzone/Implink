@@ -28,8 +28,8 @@ public class ImpSignerFactory : ISignerFactory
     /// <summary>
     /// Creates an instance of <see cref="IHttpSigner"/>.
     /// </summary>
-    public IHttpSigner Create(ClientApi client)
+    public IHttpSigner Create(IMessagingClient client)
     {
-        return new ImpSigner(new ImpSecret(client));
+        return new ImpSigner(new ImpAuthentication(client.Profile));
     }
 }

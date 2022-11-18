@@ -47,7 +47,7 @@ public class AppSettings : Jsonizable, IReadOnlyAppSettings
         DatabaseConnection = conf[nameof(DatabaseConnection)]?.Trim() ?? "";
         DatabaseRefresh = TimeSpan.FromSeconds(conf.GetValue<int>(nameof(DatabaseRefresh), 60));
         ResponseTimeout = TimeSpan.FromSeconds(conf.GetValue<int>(nameof(ResponseTimeout), 5000));
-        ForwardWait = conf.GetValue<bool>(nameof(ForwardWait), false);
+        WaitOnForward = conf.GetValue<bool>(nameof(WaitOnForward), false);
         RemoteTerminatedUrl = conf[nameof(RemoteTerminatedUrl)]?.Trim() ?? "";
         RemoteOriginatedUrl = conf[nameof(RemoteOriginatedUrl)]?.Trim() ?? "";
 
@@ -83,9 +83,9 @@ public class AppSettings : Jsonizable, IReadOnlyAppSettings
     public TimeSpan ResponseTimeout { get; set; } = TimeSpan.FromMilliseconds(5000);
 
     /// <summary>
-    /// Implements <see cref="IReadOnlyAppSettings.ForwardWait"/> and provides a setter.
+    /// Implements <see cref="IReadOnlyAppSettings.WaitOnForward"/> and provides a setter.
     /// </summary>
-    public bool ForwardWait { get; set; }
+    public bool WaitOnForward { get; set; }
 
     /// <summary>
     /// Implements <see cref="IReadOnlyAppSettings.RemoteOriginatedUrl"/> and provides a setter.
@@ -98,9 +98,9 @@ public class AppSettings : Jsonizable, IReadOnlyAppSettings
     public string RemoteOriginatedUrl { get; set; } = "https://*:38669";
 
     /// <summary>
-    /// Implements <see cref="Jsonizable.CheckValidity(out string)"/>.
+    /// Implements <see cref="IValidity.CheckValidity(out string)"/>.
     /// </summary>
-    public override bool CheckValidity(out string message)
+    public bool CheckValidity(out string message)
     {
         if (DatabaseKind == DatabaseKind.None)
         {

@@ -21,26 +21,13 @@
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// Defines supported kndpoint kinds. Values are stored in database and should be explicitly defined.
+/// The <see cref="IMessagingClient"/> extends <see cref="IMessagingApi"/> by providing
+/// its <see cref="IReadOnlyClientProfile"/>. It also inherits <see cref="IDisposable"/>.
 /// </summary>
-public enum EndpointKind
+public interface IMessagingClient : IMessagingApi, IDisposable
 {
     /// <summary>
-    /// Requests are generated locally, with the endpoint being a REMOTE TERMINATED entity,
-    /// i.e. third-party service (Twitter) or other federated IMP server. All other values are
-    /// to be considered REMOTE ORIGINATED.
+    /// Gets the profile, i.e. the client's configuration parameters.
     /// </summary>
-    Remote = 0,
-
-    /// <summary>
-    /// The request are remote originated, with the endpoint being a local Elgg service.
-    /// </summary>
-    LocalElgg = 1,
-
-    /// <summary>
-    /// The request are remote originated, with the endpoint being a local MatterMost service.
-    /// </summary>
-    LocalMatterMost = 2,
-
+    IReadOnlyClientProfile Profile { get; }
 }
-

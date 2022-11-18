@@ -26,12 +26,9 @@ namespace KuiperZone.Implink.Api;
 /// <summary>
 /// A base class for all JSON serializable data for convenience and to enforce consistency.
 /// </summary>
-public abstract class Jsonizable : IValidity
+public abstract class Jsonizable
 {
-    /// <summary>
-    /// Common JsonSerializerOptions value.
-    /// </summary>
-    public static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions
+    private static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions
         { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = false, PropertyNameCaseInsensitive = true };
 
@@ -49,22 +46,6 @@ public abstract class Jsonizable : IValidity
     }
 
     /// <summary>
-    /// Implements <see cref="IValidity.AssertValidity"/>.
-    /// </summary>
-    public void AssertValidity()
-    {
-        if (!CheckValidity(out string message))
-        {
-            throw new ArgumentException(message);
-        }
-    }
-
-    /// <summary>
-    /// Abstract <see cref="IValidity.CheckValidity(out string)"/>.
-    /// </summary>
-    public abstract bool CheckValidity(out string message);
-
-    /// <summary>
     /// Overrides to output serializaed JSON string.
     /// </summary>
     public override string ToString()
@@ -75,11 +56,11 @@ public abstract class Jsonizable : IValidity
     /// <summary>
     /// Outputs JSON with indented option.
     /// </summary>
-    public string ToString(bool indented)
+    public string ToString(bool indent)
     {
         var opts = new JsonSerializerOptions();
         opts.DefaultIgnoreCondition = JsonOpts.DefaultIgnoreCondition;
-        opts.WriteIndented = indented;
+        opts.WriteIndented = indent;
         return JsonSerializer.Serialize(this, GetType(), opts);
     }
 }

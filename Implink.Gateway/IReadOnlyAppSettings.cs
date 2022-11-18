@@ -18,6 +18,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using KuiperZone.Implink.Api;
 using KuiperZone.Utility.Yaal;
 
 namespace KuiperZone.Implink.Gateway;
@@ -25,7 +26,7 @@ namespace KuiperZone.Implink.Gateway;
 /// <summary>
 /// Readonly application settings.
 /// </summary>
-public interface IReadOnlyAppSettings
+public interface IReadOnlyAppSettings : IValidity
 {
     /// <summary>
     /// Gets the logging threshold.
@@ -59,7 +60,7 @@ public interface IReadOnlyAppSettings
     /// correctly composed request and forwards the message in a background thread. Set true
     /// for test only.
     /// </summary>
-    bool ForwardWait { get; }
+    bool WaitOnForward { get; }
 
     /// <summary>
     /// Gets the private server URL for remote terminated requests. This must always be on the

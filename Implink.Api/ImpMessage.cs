@@ -21,31 +21,36 @@
 namespace KuiperZone.Implink.Api;
 
 /// <summary>
-/// The POST submit message body.
+/// The message post body.
 /// </summary>
-public class SubmitPost : RequestMessage
+public class ImpMessage : ImpRequest
 {
     /// <summary>
     /// Default constructor.
     /// </summary>
-    public SubmitPost()
+    public ImpMessage()
     {
     }
 
     /// <summary>
     /// Copy constructor.
     /// </summary>
-    public SubmitPost(SubmitPost other)
+    public ImpMessage(ImpMessage other)
     {
-        GroupId = other.GroupId;
         GatewayId = other.GatewayId;
+        GroupId = other.GroupId;
         UserName = other.UserName;
-        Category = other.Category;
+        Tag = other.Tag;
         MsgId = other.MsgId;
         ParentMsgId = other.ParentMsgId;
         Text = other.Text;
-        LinkUrl = other.LinkUrl;
     }
+
+    /// <summary>
+    /// Gets or sets the gateway name. It should be considered mandatory for incoming remote-originated requests.
+    /// It may be null for internal LAN requests.
+    /// </summary>
+    public string? GatewayId { get; set; }
 
     /// <summary>
     /// Gets or sets the mandatory group ID. A message must belong to a group (channel or topic).
@@ -53,19 +58,14 @@ public class SubmitPost : RequestMessage
     public string GroupId { get; set; } = "";
 
     /// <summary>
-    /// Gets or sets the gateway name. It is mandatory for traffic other than that on the internal LAN.
-    /// </summary>
-    public string GatewayId { get; set; } = "";
-
-    /// <summary>
     /// Get or sets the mandatory name of the human use who originally posted the message.
     /// </summary>
     public string UserName { get; set; } = "";
 
     /// <summary>
-    /// Gets or sets optional category name.
+    /// Gets or sets optional tag (or category).
     /// </summary>
-    public string? Category { get; set; }
+    public string? Tag { get; set; }
 
     /// <summary>
     /// Gets or sets the message ID. If specified, it should be a unique string possibly composed of the
@@ -84,11 +84,6 @@ public class SubmitPost : RequestMessage
     /// Gets or sets the mandatory message text.
     /// </summary>
     public string Text { get; set; } = "";
-
-    /// <summary>
-    /// Gets or sets a link URL contained in the message.
-    /// </summary>
-    public string? LinkUrl { get; set; }
 
     /// <summary>
     /// Implements <see cref="Jsonizable.CheckValidity(out string)"/>.

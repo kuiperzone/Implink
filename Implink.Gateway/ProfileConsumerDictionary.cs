@@ -29,13 +29,12 @@ namespace KuiperZone.Implink.Gateway;
 /// (a "consumer" of a profile). A real example of this a TProfile of <see cref="IReadOnlyNamedClientProfile"/>,
 /// and TConsumer of <see cref="NameClientApi"/>. The purpose of dictionary is to faciliate the updating of TConsumer
 /// items, while preserving their state data where possible. This class is abstract, and subclass must implement the
-/// <see cref="CreateConsumer"/> method. It is uses thread locking and is instance thread safe.
+/// <see cref="CreateConsumer"/> method.
 /// </summary>
 public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnlyDictionary<string,TConsumer>
     where TProfile : IDictionaryKey
     where TConsumer : class, IEquatable<TProfile>
 {
-    private readonly object _syncObj = new();
     private Dictionary<string, TConsumer> _dictionary = new(StringComparer.InvariantCultureIgnoreCase);
 
     /// <summary>
@@ -91,10 +90,7 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     /// </summary>
     public bool ContainsKey(string key)
     {
-        lock (_syncObj)
-        {
-            return _dictionary.ContainsKey(key);
-        }
+        return _dictionary.ContainsKey(key);
     }
 
     /// <summary>
@@ -102,22 +98,16 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     /// </summary>
     public bool TryGetValue(string key, [MaybeNullWhen(false)] out TConsumer value)
     {
-        lock (_syncObj)
-        {
-            return _dictionary.TryGetValue(key, out value);
-        }
+        return _dictionary.TryGetValue(key, out value);
     }
     /// <summary>
     /// Clears all. The result is a sequence of removed items.
     /// </summary>
     public IEnumerable<TConsumer> Clear()
     {
-        lock (_syncObj)
-        {
-            var temp = Values;
-            _dictionary.Clear();
-            return temp;
-        }
+        var temp = Values;
+        _dictionary.Clear();
+        return temp;
     }
 
     /// <summary>
@@ -129,14 +119,11 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     {
         var temp = new List<TConsumer>();
 
-        lock (_syncObj)
+        foreach (var item in keys)
         {
-            foreach (var item in keys)
+            if (_dictionary.TryGetValue(item, out TConsumer? value))
             {
-                if (_dictionary.TryGetValue(item, out TConsumer? value))
-                {
-                    temp.Add(value);
-                }
+                temp.Add(value);
             }
         }
 
@@ -150,17 +137,14 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     /// </summary>
     public bool Insert(TProfile profile)
     {
-        lock (_syncObj)
+        if (!_dictionary.ContainsKey(profile.GetKey()))
         {
-            if (!_dictionary.ContainsKey(profile.GetKey()))
-            {
-                // IMPORTANT. We create only once we know that Add() is possible.
-                _dictionary.Add(profile.GetKey(), CreateConsumer(profile));
-                return true;
-            }
-
-            return false;
+            // IMPORTANT. We create only once we know that Add() is possible.
+            _dictionary.Add(profile.GetKey(), CreateConsumer(profile));
+            return true;
         }
+
+        return false;
     }
 
     /// <summary>
@@ -172,10 +156,7 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     /// </summary>
     public bool Upsert(TProfile profile, out TConsumer? old)
     {
-        lock (_syncObj)
-        {
-            return UpsertNoSync(_dictionary, profile, out old);
-        }
+        return Upsert(_dictionary, profile, out old);
     }
 
     /// <summary>
@@ -183,10 +164,7 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     /// </summary>
     public bool Upsert(TProfile profile)
     {
-        lock (_syncObj)
-        {
-            return UpsertNoSync(_dictionary, profile, out _);
-        }
+        return Upsert(_dictionary, profile, out _);
     }
 
     /// <summary>
@@ -202,33 +180,29 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
             newItems.TryAdd(item.GetKey(), item);
         }
 
-        lock (_syncObj)
+        var keep = new Dictionary<string, TConsumer>(_dictionary.Count);
+
+        foreach (var kv in _dictionary)
         {
-            var keep = new Dictionary<string, TConsumer>(_dictionary.Count);
-
-            foreach (var kv in _dictionary)
+            if (newItems.ContainsKey(kv.Key))
             {
-                if (newItems.ContainsKey(kv.Key))
-                {
-                    keep.Add(kv.Key, kv.Value);
-                }
-                else
-                {
-                    removals.Add(kv.Value);
-                }
+                keep.Add(kv.Key, kv.Value);
             }
-
-            foreach (var item in newItems)
+            else
             {
-                if (UpsertNoSync(keep, item.Value, out TConsumer? old) && old != null)
-                {
-                    removals.Add(old);
-                }
+                removals.Add(kv.Value);
             }
-
-            _dictionary = keep;
         }
 
+        foreach (var item in newItems)
+        {
+            if (Upsert(keep, item.Value, out TConsumer? old) && old != null)
+            {
+                removals.Add(old);
+            }
+        }
+
+        _dictionary = keep;
         return removals.ToArray();
     }
 
@@ -237,16 +211,13 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     /// </summary>
     public TConsumer? Remove(string key)
     {
-        lock (_syncObj)
+        if (_dictionary.TryGetValue(key, out TConsumer? temp))
         {
-            if (_dictionary.TryGetValue(key, out TConsumer? temp))
-            {
-                _dictionary.Remove(key);
-                return temp;
-            }
-
-            return null;
+            _dictionary.Remove(key);
+            return temp;
         }
+
+        return null;
     }
 
     /// <summary>
@@ -254,7 +225,7 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     /// </summary>
     protected abstract TConsumer CreateConsumer(TProfile profile);
 
-    private bool UpsertNoSync(Dictionary<string, TConsumer> dictionary, TProfile profile, out TConsumer? old)
+    private bool Upsert(Dictionary<string, TConsumer> dictionary, TProfile profile, out TConsumer? old)
     {
         old = null;
         var key = profile.GetKey();

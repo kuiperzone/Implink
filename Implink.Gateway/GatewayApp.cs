@@ -18,10 +18,12 @@
 // If not, see <https://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
+using System.Globalization;
 using System.Net;
 using System.Net.Mime;
 using System.Text;
 using KuiperZone.Implink.Api;
+using KuiperZone.Implink.Api.Util;
 using KuiperZone.Utility.Yaal;
 using Microsoft.Extensions.Primitives;
 
@@ -32,22 +34,36 @@ namespace KuiperZone.Implink.Gateway;
 /// </summary>
 public class GatewayApp : IDisposable, IAsyncDisposable
 {
+    private readonly object _syncObj = new();
+    private readonly ProfileDatabase _database;
+    private readonly RouterDictionary _routers;
+
     private readonly Thread? _thread;
     private readonly WebApplication _app;
-    private readonly ClientDictionary _clients;
-    private readonly ProfileDatabase _database;
+
+
     private volatile bool v_disposed;
 
     /// <summary>
     /// Constructor.
     /// </summary>
-    public GatewayApp(string[] args, IReadOnlyAppSettings settings, bool remoteTerminated)
+    public GatewayApp(string[] args, IReadOnlyAppSettings settings, bool remoteOriginated)
     {
-        IsRemoteTerminated = remoteTerminated;
-        Logger.Global.Debug($"{nameof(IsRemoteTerminated)}={IsRemoteTerminated}");
-
         Settings = settings;
-        ServerUrl = IsRemoteTerminated ? Settings.RemoteTerminatedUrl : Settings.RemoteOriginatedUrl;
+        IsRemoteOriginated = remoteOriginated;
+
+        if (IsRemoteOriginated)
+        {
+            DirectionName = "RemoteOriginated";
+            ServerUrl = Settings.RemoteOriginatedUrl;
+        }
+        else
+        {
+            DirectionName = "RemoteTerminated";
+            ServerUrl = Settings.RemoteTerminatedUrl;
+        }
+
+        Logger.Global.Debug($"{nameof(DirectionName)}={DirectionName}");
         Logger.Global.Debug($"{nameof(ServerUrl)}={ServerUrl}");
 
         if (string.IsNullOrEmpty(ServerUrl))
@@ -61,33 +77,45 @@ public class GatewayApp : IDisposable, IAsyncDisposable
         builder.Logging.ClearProviders();
 
         builder.Host.UseSystemd();
-
         Logger.Global.Debug("Creating database");
-        _database = new(Settings.DatabaseKind, Settings.DatabaseConnection, IsRemoteTerminated);
+        _database = new(Settings.DatabaseKind, Settings.DatabaseConnection);
 
-        Logger.Global.Debug("Creating clients");
-        _clients = new(_database.QueryAllRoutes(), IsRemoteTerminated);
+        Logger.Global.Debug("Creating routes");
+        _routers = new(Settings.WaitOnForward);
+        RefreshRoutesNoSync();
 
         Logger.Global.Debug("Building application");
         _app = builder.Build();
 
         // https://www.koderdojo.com/blog/asp-net-core-routing-and-routebuilder-mapget-for-calculating-a-factorial
-        _app.MapPost("/" + nameof(SubmitPost), SubmitPostHandler);
+        _app.MapPost("/" + nameof(IMessagingApi.PostMessage), PostMessageHandler);
+        _app.MapGet("/GetTime", GetTimeHandler);
+
+        if (!IsRemoteOriginated)
+        {
+            // Local only
+            _app.MapGet("/GetRoutingInfo", GetRoutingInfoHandler);
+        }
 
         if (Settings.DatabaseRefresh > TimeSpan.Zero)
         {
             Logger.Global.Debug($"Starting {nameof(GatewayApp)} thread");
             _thread = new(DatabaseThread);
-            _thread.Name = "Database" + (IsRemoteTerminated ? "Remote" : "Local");
+            _thread.Name = "Database" + (IsRemoteOriginated ? "Local" : "Remote");
             _thread.IsBackground = true;
             _thread.Start();
-        }
+       }
     }
 
     /// <summary>
-    /// Gets whether remote terminated (or local terminated).
+    /// Gets whether gateway is remote-originated.
     /// </summary>
-    public bool IsRemoteTerminated { get; }
+    public bool IsRemoteOriginated { get; }
+
+    /// <summary>
+    /// Gets the direction name, i.e. "RemoteOriginated" or "RemoteTerminated".
+    /// </summary>
+    public string DirectionName { get; }
 
     /// <summary>
     /// Gets the routing information refresh interval.
@@ -166,221 +194,235 @@ public class GatewayApp : IDisposable, IAsyncDisposable
     public ValueTask DisposeAsync()
     {
         Logger.Global.Debug("Disposal");
+
         v_disposed = true;
         _thread?.Interrupt();
 
         var t = _app.DisposeAsync();
         _database.Dispose();
-        _clients.Dispose();
+
         return t;
     }
 
-    private static string GenerateMsgId(int count = 10)
+    private MessageRouter? GetRoute(string? id)
     {
-        const string Alphabet = "abcdefghijklmnopqurstuvwxyz0123456789";
-
-        var buf = new StringBuilder(count);
-
-        for (int n = 0; n < count; ++n)
+        lock (_syncObj)
         {
-            buf.Append(Alphabet[Random.Shared.Next(0, Alphabet.Length)]);
-        }
+            if (id != null && _routers.TryGetValue(id, out MessageRouter? route))
+            {
+                return route;
+            }
 
-        return buf.ToString();
+            return null;
+        }
     }
 
-    private static int SubmitPostToClient(ClientApi client, SubmitPost submit, out SubmitResponse response)
+    private string GetRoutingInfo(bool refresh, bool indent = true)
+    {
+        lock (_syncObj)
+        {
+            if (refresh)
+            {
+                try
+                {
+                    RefreshRoutesNoSync();
+                }
+                catch (Exception e)
+                {
+                    var sb = new StringBuilder();
+
+                    sb.Append($"Failed to refresh routes from database: {_database.Connection}");
+                    Logger.Global.Write(SeverityLevel.Error, sb.ToString());
+
+                    sb.AppendLine();
+                    sb.Append(e.Message);
+
+                    Logger.Global.Write(e);
+                    return sb.ToString();
+                }
+            }
+
+            return GetRoutingInfoNoSync(indent);
+        }
+    }
+
+    private void RefreshRoutes()
+    {
+        lock (_syncObj)
+        {
+            try
+            {
+                RefreshRoutesNoSync();
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private string RefreshRoutesNoSync()
     {
         try
         {
-            var prof = client.Profile;
+            var sb = new StringBuilder();
 
-            Logger.Global.Write($"Sending: {prof.Api}, {prof.BaseAddress}");
-            var code = client.SubmitPostRequest(submit, out response);
+            Logger.Global.Debug("Query data for clients");
+            var clients = _database.QueryClients();
 
-            Logger.Global.Write("Response code: " + code);
-            Logger.Global.Write(response.ToString());
-
-            if (code != (int)HttpStatusCode.OK)
+            foreach (var item in clients)
             {
-                var msg = $"Failed to submit request on internal thread: {prof.Api}, {prof.BaseAddress}. " +
-                    $"Status code {code}, {response.ErrorReason}";
-                Logger.Global.Write(SeverityLevel.Notice, msg);
+
             }
 
-            return code;
+
+            var oldClients = _routers.Clients.UpsertMany();
+
+            foreach (var item in oldClients)
+            {
+                // We could dispose of clients here,
+                // but existing routes may be using them.
+                // GOING TO LEAVE THEM TO GARBAGE COLLECTOR
+                Logger.Global.Write(SeverityLevel.Notice, $"Deprovisioned client {item.Profile.Id}");
+            }
+
+            Logger.Global.Debug("Query data for routes");
+            var oldRoutes = _routers.UpsertMany(_database.QueryRoutes(IsRemoteOriginated));
+
+            foreach (var item in oldRoutes)
+            {
+                Logger.Global.Write(SeverityLevel.Notice, $"Deprovisioned route {item.Profile.Id}");
+            }
+
+
+            foreach (var route in _routers.Values)
+            {
+                var clients = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+
+                foreach (var item in route.Clients)
+                {
+                    clients.Add(item.Profile.Id);
+                }
+
+                foreach (var item in StringParser.ToSet(route.Profile.Clients))
+                {
+                    if (clients.Add(item))
+                    {
+                        Logger.Global.Write(SeverityLevel.Warning, $"{item} - WARNING : Client not provisioned");
+                    }
+                }
+            }
         }
         catch (Exception e)
         {
+            var sb = new StringBuilder($"Failed to read from database: {_database.Connection}");
+            Logger.Global.Write(SeverityLevel.Error, sb.ToString());
             Logger.Global.Write(e);
 
-            response = new();
-            response.ErrorReason = e.Message;
-            response.MsgId = submit.MsgId;
-            return (int)HttpStatusCode.InternalServerError;
+            sb.AppendLine();
+            sb.Append(e.Message);
+
+            return sb.ToString();
         }
     }
 
-    private async Task<Task> SubmitPostHandler(HttpContext ctx)
+    private string GetRoutingInfoNoSync(bool indent)
     {
-        string kind = IsRemoteTerminated ? "RemoteTerminated" : "RemoteOriginated";
-        Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {nameof(SubmitPost)} on {kind} via {ServerUrl}");
+        var sb = new StringBuilder();
+
+        foreach (var items in _routers)
+        {
+            if (sb.Length != 0)
+            {
+                sb.AppendLine(",");
+            }
+
+            sb.Append(items.ToString());
+        }
+
+        return sb.ToString();
+    }
+
+    private Task GetTimeHandler(HttpContext ctx)
+    {
+        Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {DirectionName}.GetTime on {ServerUrl}");
+
+        var resp = new ImpResponse(DateTime.UtcNow.ToString("O"));
+        return WriteResponseAsync(ctx.Response, resp);
+    }
+
+    private Task GetRoutingInfoHandler(HttpContext ctx)
+    {
+        var resp = new ImpResponse();
+        Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {DirectionName}.GetRouteInfo on {ServerUrl}");
+
+        try
+        {
+            var temp = ctx.Request.Query["refresh"].ToString();
+
+            Logger.Global.Debug("Refresh: {temp}");
+            resp.Content = GetRoutingInfo(temp.Equals("true", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception e)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Failed to refresh routes from database: {_database.Connection}");
+            sb.Append(e.Message);
+            resp.Content = sb.ToString();
+        }
+
+        return WriteResponseAsync(ctx.Response, resp);
+    }
+
+    private async Task<Task> PostMessageHandler(HttpContext ctx)
+    {
+        Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {DirectionName}.{nameof(IMessagingApi.PostMessage)} on {ServerUrl}");
 
         using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8, false);
 
         var body = await reader.ReadToEndAsync();
         Logger.Global.Write(SeverityLevel.Info, body);
 
-        var submit = Jsonizable.Deserialize<SubmitPost>(body);
+        // Must deserialize before we can route and authenticate
+        var request = Jsonizable.Deserialize<ImpMessage>(body);
 
-        if (string.IsNullOrEmpty(submit.MsgId))
+        if (IsRemoteOriginated && string.IsNullOrWhiteSpace(request.GatewayId))
         {
-            submit.MsgId = GenerateMsgId();
+            return WriteResponseAsync(ctx.Response, new ImpResponse(HttpStatusCode.BadRequest, $"{nameof(request.GatewayId)} mandatory for {DirectionName}"));
         }
 
-        int code = SubmitPostToMultiClients(ctx.Request.Headers, body, submit, out SubmitResponse response);
-        Logger.Global.Write(SeverityLevel.Notice, $"Response code: {code}");
+        var id = (IsRemoteOriginated ? request.GatewayId : request.GroupId) ?? "";
+        Logger.Global.Write(SeverityLevel.Info, $"Routing ID: {id}");
 
-        if (!string.IsNullOrEmpty(response.ErrorReason))
+        var route = GetRoute(id);
+
+        if (route == null)
         {
-            Logger.Global.Write(SeverityLevel.Notice, response.ErrorReason);
+            return WriteResponseAsync(ctx.Response, new ImpResponse(HttpStatusCode.BadRequest, $"No route for {id}"));
         }
 
-        return WriteResponseAsync(ctx.Response, code, response.ToString());
+        return WriteResponseAsync(route, ctx.Response, route.PostMessage(ctx.Request.Headers, body, request));
     }
 
-    private int SubmitPostToMultiClients(IDictionary<string, StringValues> headers, string body,
-        SubmitPost submit, out SubmitResponse response)
+    private Task WriteResponseAsync(HttpResponse httpResp, ImpResponse impResp)
     {
-        response = new();
-        response.ErrorReason = "OK";
-        response.MsgId = submit.MsgId;
+        var body = impResp.ToString();
+        Logger.Global.Write(SeverityLevel.Notice, "RESPONSE: " + body);
 
-        try
-        {
-            if (!submit.CheckValidity(out string msg))
-            {
-                response.ErrorReason = msg;
-                return (int)HttpStatusCode.BadRequest;
-            }
-
-            var nameId = IsRemoteTerminated ? submit.GroupId : submit.UserName;
-            var clients = _clients.Get(nameId);
-
-            int count = 0;
-            var code = (int)HttpStatusCode.OK;
-            var errors = new List<string>();
-
-            foreach (var item in clients)
-            {
-                if (item.Client.Categories.Count == 0 || (item.Client.Categories.Contains(submit.Category ?? "")))
-                {
-                    Logger.Global.Debug($"Accept: {item.Client.Profile.GetKey()}");
-
-                    var authFailure = item.AuthenticationSecret?.Verify(headers, body);
-
-                    if (authFailure != null)
-                    {
-                        errors.Add(authFailure);
-                        Logger.Global.Debug(errors[^1]);
-
-                        if (code == (int)HttpStatusCode.OK)
-                        {
-                            code = (int)HttpStatusCode.Unauthorized;
-                        }
-                    }
-                    else
-                    if (item.Counter.IsThrottled(true))
-                    {
-                        errors.Add(item.Client.Profile.Api + ' ' + HttpStatusCode.TooManyRequests);
-                        Logger.Global.Debug(errors[^1]);
-
-                        if (code == (int)HttpStatusCode.OK)
-                        {
-                            code = (int)HttpStatusCode.TooManyRequests;
-                        }
-                    }
-                    else
-                    if (Settings.ForwardWait)
-                    {
-                        Logger.Global.Debug("Forward and wait for response");
-
-                        count += 1;
-                        var tc = SubmitPostToClient(item.Client, submit, out SubmitResponse tr);
-
-                        if (tc != (int)HttpStatusCode.OK)
-                        {
-                            if (!string.IsNullOrEmpty(tr.ErrorReason))
-                            {
-                                errors.Add(tr.ErrorReason);
-                            }
-
-                            if (code == (int)HttpStatusCode.OK)
-                            {
-                                code = tc;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        Logger.Global.Debug("Queue for worker thread");
-                        count += 1;
-                        ThreadPool.QueueUserWorkItem(SubmitThread, Tuple.Create(item.Client, submit));
-                    }
-                }
-            }
-
-            if (code != (int)HttpStatusCode.OK)
-            {
-                if (errors.Count == 1)
-                {
-                    response.ErrorReason = errors[0];
-                }
-                else
-                {
-                    // Combine responses
-                    var success = count - errors.Count;
-                    response.ErrorReason = success + " of " + clients.Length + " succeeded: " + string.Join(", ", errors);
-                }
-            }
-            else
-            if (count == 0)
-            {
-                response.ErrorReason = "No client for " + nameId;
-                return (int)HttpStatusCode.BadRequest;
-            }
-
-            return code;
-        }
-        catch (ImpException e)
-        {
-            Logger.Global.Debug(e);
-            response.ErrorReason = e.Message;
-            return e.StatusCode;
-        }
-        catch (Exception e)
-        {
-            Logger.Global.Debug(e);
-            response.ErrorReason = e.Message;
-            return (int)HttpStatusCode.InternalServerError;
-        }
-    }
-
-    private Task WriteResponseAsync(HttpResponse resp, int code, string? body)
-    {
-        body ??= string.Empty;
-        resp.StatusCode = code;
-        resp.ContentType = MediaTypeNames.Application.Json;
-        resp.ContentLength = Encoding.UTF8.GetByteCount(body);
+        httpResp.StatusCode = (int)impResp.Status;
+        httpResp.ContentType = MediaTypeNames.Application.Json;
+        httpResp.ContentLength = Encoding.UTF8.GetByteCount(body);
 
         Logger.Global.Debug($"Writing response");
-        return resp.WriteAsync(body, new CancellationTokenSource(Settings.ResponseTimeout).Token);
+        return httpResp.WriteAsync(body, new CancellationTokenSource(Settings.ResponseTimeout).Token);
     }
 
-    private static void SubmitThread(object? obj)
+    private Task WriteResponseAsync(MessageRouter route, HttpResponse httpResp, ImpResponse impResp)
     {
-        var tuple = (Tuple<ClientApi, SubmitPost>)(obj ?? throw new ArgumentNullException());
-        SubmitPostToClient(tuple.Item1, tuple.Item2, out SubmitResponse _);
+        var rate = route.Counter.Rate;
+        var limit = route.Counter.MaxRate;
+        httpResp.Headers.Add("CURRENT_RATE", rate.ToString(CultureInfo.InvariantCulture));
+        httpResp.Headers.Add("RATE_LIMIT", rate.ToString(CultureInfo.InvariantCulture));
+        return WriteResponseAsync(httpResp, impResp);
     }
 
     private void DatabaseThread(object? _)
@@ -395,14 +437,20 @@ public class GatewayApp : IDisposable, IAsyncDisposable
 
                 if (!v_disposed)
                 {
-                    Logger.Global.Debug($"Query all routes from database");
-                    _clients.Reload(_database.QueryAllRoutes());
+                    lock (_syncObj)
+                    {
+                        RefreshRoutesNoSync();
+                    }
                 }
+            }
+            catch (ThreadInterruptedException e)
+            {
+                Logger.Global.Write(e.Message);
             }
             catch (Exception e)
             {
                 Logger.Global.Write(SeverityLevel.Error, "Failed to read from database");
-                Logger.Global.Write(e);
+                Logger.Global.Write(e.ToString());
             }
         }
     }
