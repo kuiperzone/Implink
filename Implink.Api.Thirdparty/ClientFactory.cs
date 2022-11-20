@@ -34,6 +34,8 @@ public static class ClientFactory
     {
         switch (kind)
         {
+            case ClientKind.Stub:
+                return new StubClient(profile);
             case ClientKind.ImpV1:
                 return new ImpClient(profile);
             case ClientKind.Twitter:

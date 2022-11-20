@@ -23,9 +23,7 @@ using System.Net;
 using System.Net.Mime;
 using System.Text;
 using KuiperZone.Implink.Api;
-using KuiperZone.Implink.Api.Util;
 using KuiperZone.Utility.Yaal;
-using Microsoft.Extensions.Primitives;
 
 namespace KuiperZone.Implink.Gateway;
 
@@ -82,7 +80,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
 
         Logger.Global.Debug("Creating routes");
         _routers = new(Settings.WaitOnForward);
-        RefreshRoutesNoSync();
+        UpdateRoutes();
 
         Logger.Global.Debug("Building application");
         _app = builder.Build();
@@ -95,11 +93,13 @@ public class GatewayApp : IDisposable, IAsyncDisposable
         {
             // Local only
             _app.MapGet("/GetRoutingInfo", GetRoutingInfoHandler);
+            _app.MapGet("/UpdateRouting", UpdateRoutingHandler);
         }
 
         if (Settings.DatabaseRefresh > TimeSpan.Zero)
         {
             Logger.Global.Debug($"Starting {nameof(GatewayApp)} thread");
+
             _thread = new(DatabaseThread);
             _thread.Name = "Database" + (IsRemoteOriginated ? "Local" : "Remote");
             _thread.IsBackground = true;
@@ -204,144 +204,6 @@ public class GatewayApp : IDisposable, IAsyncDisposable
         return t;
     }
 
-    private MessageRouter? GetRoute(string? id)
-    {
-        lock (_syncObj)
-        {
-            if (id != null && _routers.TryGetValue(id, out MessageRouter? route))
-            {
-                return route;
-            }
-
-            return null;
-        }
-    }
-
-    private string GetRoutingInfo(bool refresh, bool indent = true)
-    {
-        lock (_syncObj)
-        {
-            if (refresh)
-            {
-                try
-                {
-                    RefreshRoutesNoSync();
-                }
-                catch (Exception e)
-                {
-                    var sb = new StringBuilder();
-
-                    sb.Append($"Failed to refresh routes from database: {_database.Connection}");
-                    Logger.Global.Write(SeverityLevel.Error, sb.ToString());
-
-                    sb.AppendLine();
-                    sb.Append(e.Message);
-
-                    Logger.Global.Write(e);
-                    return sb.ToString();
-                }
-            }
-
-            return GetRoutingInfoNoSync(indent);
-        }
-    }
-
-    private void RefreshRoutes()
-    {
-        lock (_syncObj)
-        {
-            try
-            {
-                RefreshRoutesNoSync();
-            }
-            catch
-            {
-            }
-        }
-    }
-
-    private string RefreshRoutesNoSync()
-    {
-        try
-        {
-            var sb = new StringBuilder();
-
-            Logger.Global.Debug("Query data for clients");
-            var clients = _database.QueryClients();
-
-            foreach (var item in clients)
-            {
-
-            }
-
-
-            var oldClients = _routers.Clients.UpsertMany();
-
-            foreach (var item in oldClients)
-            {
-                // We could dispose of clients here,
-                // but existing routes may be using them.
-                // GOING TO LEAVE THEM TO GARBAGE COLLECTOR
-                Logger.Global.Write(SeverityLevel.Notice, $"Deprovisioned client {item.Profile.Id}");
-            }
-
-            Logger.Global.Debug("Query data for routes");
-            var oldRoutes = _routers.UpsertMany(_database.QueryRoutes(IsRemoteOriginated));
-
-            foreach (var item in oldRoutes)
-            {
-                Logger.Global.Write(SeverityLevel.Notice, $"Deprovisioned route {item.Profile.Id}");
-            }
-
-
-            foreach (var route in _routers.Values)
-            {
-                var clients = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
-
-                foreach (var item in route.Clients)
-                {
-                    clients.Add(item.Profile.Id);
-                }
-
-                foreach (var item in StringParser.ToSet(route.Profile.Clients))
-                {
-                    if (clients.Add(item))
-                    {
-                        Logger.Global.Write(SeverityLevel.Warning, $"{item} - WARNING : Client not provisioned");
-                    }
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            var sb = new StringBuilder($"Failed to read from database: {_database.Connection}");
-            Logger.Global.Write(SeverityLevel.Error, sb.ToString());
-            Logger.Global.Write(e);
-
-            sb.AppendLine();
-            sb.Append(e.Message);
-
-            return sb.ToString();
-        }
-    }
-
-    private string GetRoutingInfoNoSync(bool indent)
-    {
-        var sb = new StringBuilder();
-
-        foreach (var items in _routers)
-        {
-            if (sb.Length != 0)
-            {
-                sb.AppendLine(",");
-            }
-
-            sb.Append(items.ToString());
-        }
-
-        return sb.ToString();
-    }
-
     private Task GetTimeHandler(HttpContext ctx)
     {
         Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {DirectionName}.GetTime on {ServerUrl}");
@@ -352,24 +214,17 @@ public class GatewayApp : IDisposable, IAsyncDisposable
 
     private Task GetRoutingInfoHandler(HttpContext ctx)
     {
-        var resp = new ImpResponse();
         Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {DirectionName}.GetRouteInfo on {ServerUrl}");
 
-        try
-        {
-            var temp = ctx.Request.Query["refresh"].ToString();
+        var resp = new ImpResponse(GetRoutingInfo());
+        return WriteResponseAsync(ctx.Response, resp);
+    }
 
-            Logger.Global.Debug("Refresh: {temp}");
-            resp.Content = GetRoutingInfo(temp.Equals("true", StringComparison.OrdinalIgnoreCase));
-        }
-        catch (Exception e)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine($"Failed to refresh routes from database: {_database.Connection}");
-            sb.Append(e.Message);
-            resp.Content = sb.ToString();
-        }
+    private Task UpdateRoutingHandler(HttpContext ctx)
+    {
+        Logger.Global.Write(SeverityLevel.Notice, $"RECEIVED: {DirectionName}.GetRouteInfo on {ServerUrl}");
 
+        var resp = new ImpResponse(UpdateRoutes());
         return WriteResponseAsync(ctx.Response, resp);
     }
 
@@ -400,7 +255,83 @@ public class GatewayApp : IDisposable, IAsyncDisposable
             return WriteResponseAsync(ctx.Response, new ImpResponse(HttpStatusCode.BadRequest, $"No route for {id}"));
         }
 
-        return WriteResponseAsync(route, ctx.Response, route.PostMessage(ctx.Request.Headers, body, request));
+        var resp = route.PostMessage(ctx.Request.Headers, body, request);
+        return WriteResponseAsync(route, ctx.Response, resp);
+    }
+
+    private MessageRouter? GetRoute(string? id)
+    {
+        lock (_syncObj)
+        {
+            if (id != null && _routers.TryGetValue(id, out MessageRouter? route))
+            {
+                return route;
+            }
+
+            return null;
+        }
+    }
+
+    private string GetRoutingInfo()
+    {
+        lock (_syncObj)
+        {
+            var sb = new StringBuilder();
+
+            foreach (var items in _routers)
+            {
+                if (sb.Length != 0)
+                {
+                    sb.AppendLine(",");
+                }
+
+                sb.Append(items.ToString());
+            }
+
+            return sb.ToString();
+        }
+    }
+
+    private string UpdateRoutes()
+    {
+        var log = new List<LogMessage>();
+
+        try
+        {
+            lock (_syncObj)
+            {
+                log.Add(new LogMessage("Query messaging clients from database: " + _database.Connection));
+                var clients = _database.QueryClients();
+
+                log.Add(new LogMessage("Total clients: " + clients.Count()));
+
+                // We could dispose of clients here,
+                // but existing routes may be using them.
+                // GOING TO LEAVE THEM TO GARBAGE COLLECTOR
+                _routers.Clients.UpsertMany(clients, log);
+
+                log.Add(new LogMessage($"Query {DirectionName} routes from database"));
+                var routes = _database.QueryRoutes(IsRemoteOriginated);
+
+                log.Add(new LogMessage("Total clients: " + routes.Count()));
+                _routers.UpsertMany(routes, log);
+            }
+        }
+        catch(Exception e)
+        {
+            log.Add(new LogMessage(SeverityLevel.Error, $"Failed to update clients and routes"));
+            log.Add(new LogMessage(e.ToString()));
+        }
+
+        var sb = new StringBuilder();
+
+        foreach (var item in log)
+        {
+            Logger.Global.Write(item);
+            sb.AppendLine(item.ToString());
+        }
+
+        return sb.ToString();
     }
 
     private Task WriteResponseAsync(HttpResponse httpResp, ImpResponse impResp)
@@ -437,19 +368,12 @@ public class GatewayApp : IDisposable, IAsyncDisposable
 
                 if (!v_disposed)
                 {
-                    lock (_syncObj)
-                    {
-                        RefreshRoutesNoSync();
-                    }
+                    UpdateRoutes();
                 }
-            }
-            catch (ThreadInterruptedException e)
-            {
-                Logger.Global.Write(e.Message);
             }
             catch (Exception e)
             {
-                Logger.Global.Write(SeverityLevel.Error, "Failed to read from database");
+                // ThreadInterruptedException
                 Logger.Global.Write(e.ToString());
             }
         }

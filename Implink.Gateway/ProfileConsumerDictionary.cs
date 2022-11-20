@@ -20,6 +20,7 @@
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using KuiperZone.Utility.Yaal;
 
 namespace KuiperZone.Implink.Gateway;
 
@@ -168,41 +169,55 @@ public abstract class ProfileConsumerDictionary<TProfile, TConsumer> : IReadOnly
     }
 
     /// <summary>
-    /// Overload.
+    /// Upserts many, returning an array of any items removed.
     /// </summary>
-    public TConsumer[] UpsertMany(IEnumerable<TProfile> profiles)
+    public TConsumer[] UpsertMany(IEnumerable<TProfile> profiles, IList<LogMessage>? log = null)
     {
-        var newItems = new Dictionary<string, TProfile>();
+        var temp = new Dictionary<string, TProfile>();
         var removals = new List<TConsumer>(_dictionary.Count);
 
         foreach (var item in profiles)
         {
-            newItems.TryAdd(item.GetKey(), item);
+            temp.TryAdd(item.GetKey(), item);
         }
 
-        var keep = new Dictionary<string, TConsumer>(_dictionary.Count);
+        var newItems = new Dictionary<string, TConsumer>(_dictionary.Count);
 
-        foreach (var kv in _dictionary)
+        foreach (var item in _dictionary)
         {
-            if (newItems.ContainsKey(kv.Key))
+            if (temp.ContainsKey(item.Key))
             {
-                keep.Add(kv.Key, kv.Value);
+                newItems.Add(item.Key, item.Value);
             }
             else
             {
-                removals.Add(kv.Value);
+                removals.Add(item.Value);
+                log?.Add(new LogMessage($"Deprovision {item.Key}"));
             }
         }
 
-        foreach (var item in newItems)
+        foreach (var item in temp)
         {
-            if (Upsert(keep, item.Value, out TConsumer? old) && old != null)
+            if (Upsert(newItems, item.Value, out TConsumer? old) && old != null)
             {
                 removals.Add(old);
+
+                if (old == null)
+                {
+                    log?.Add(new LogMessage($"Provision new {item.Key}"));
+                }
+                else
+                {
+                    log?.Add(new LogMessage($"Update {item.Key}"));
+                }
+            }
+            else
+            {
+                log?.Add(new LogMessage($"Unchanged {item.Key}"));
             }
         }
 
-        _dictionary = keep;
+        _dictionary = newItems;
         return removals.ToArray();
     }
 

@@ -26,9 +26,9 @@ namespace KuiperZone.Implink.Api.Thirdparty;
 public enum ClientKind
 {
     /// <summary>
-    /// A placeholder for an invalid value only. Not a valid protocol.
+    /// A test stub only. Not a valid protocol.
     /// </summary>
-    None,
+    Stub = 0,
 
     /// <summary>
     /// IMP protocol version 1. By directional, i.e. both remote terminated and originated.

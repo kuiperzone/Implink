@@ -36,7 +36,7 @@ public class NamedClientProfile : ClientProfile, IReadOnlyNamedClientProfile, ID
     /// <summary>
     /// Implements <see cref="IReadOnlyNamedClientProfile.Kind"/> and provides a setter.
     /// </summary>
-    public ClientKind Kind { get; set; } = ClientKind.None;
+    public ClientKind Kind { get; set; } = ClientKind.ImpV1;
 
     /// <summary>
     /// Implements <see cref="IReadOnlyNamedClientProfile.PrefixUser"/> and provides a setter.
@@ -60,12 +60,6 @@ public class NamedClientProfile : ClientProfile, IReadOnlyNamedClientProfile, ID
         }
 
         string suffix = $" for {nameof(Id)}={Id}";
-
-        if (Kind == ClientKind.None)
-        {
-            message = $"{nameof(Kind)} cannot be {nameof(ClientKind.None)} {suffix}";
-            return false;
-        }
 
         if (!base.CheckValidity(out message))
         {

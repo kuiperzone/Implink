@@ -22,6 +22,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using KuiperZone.Implink.Api;
+using KuiperZone.Implink.Api.Thirdparty;
 using KuiperZone.Implink.Gateway;
 using KuiperZone.Utility.Yaal;
 using KuiperZone.Utility.Yaal.Sinks;
@@ -35,10 +36,12 @@ class Program
     private const string Stub = "STUB : ";
     private const string RemoteUrl = "https://localhost:39668";
     private const string LocalUrl = "http://localhost:39669";
-    private const string TestNameId = "TestNameId";
-    private const string AuthFailNameId = "AuthFailNameId";
-    private const string TestNameWithCatId = "TestNameWithCatId";
-    private const string TestCategory = "TestCategory";
+    private const string TestId = "TestId";
+    private const string StubId = "StubId";
+    private const string TagId = "TagId";
+
+    private const string AuthFailId = "AuthFailId";
+    private const string TestTag = "TestTag";
 
     private static volatile bool v_impStarted;
 
@@ -80,15 +83,14 @@ class Program
                     .SetBasePath(Directory.GetCurrentDirectory())
                     .AddJsonFile("appsettings.json").Build();
 
-                var settings = new AppSettings(conf);
+                IReadOnlyAppSettings settings = new AppSettings(conf);
                 settings.AssertValidity();
 
                 // Remote server verifies athentication
-                WriteRoutes(true);
-                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpAuthentication(CreateImpProfile(RemoteUrl, true, false)));
+                WriteRoutesAndClients();
+                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpAuthentication(CreateClientProfile("id", true)));
 
                 // Local on LAN, so no authentication
-                WriteRoutes(false);
                 using var localServer = new ImpServer(LocalUrl, false);
 
                 Logger.Global.Write("Starting Implink");
@@ -104,14 +106,14 @@ class Program
                 {
                     // Send to gateway, which will forward to "remote server" and return response
                     Logger.Global.Write(SeverityLevel.Notice, $"{Stub}REMOTE TERMINATED TESTS");
-                    RunTests(settings.RemoteTerminatedUrl, true);
+                    RunPostMessages(settings.RemoteTerminatedUrl, false);
                 }
 
                 if (!string.IsNullOrEmpty(settings.RemoteOriginatedUrl))
                 {
                     // Send to gateway, which will forward to "remote server" and return response
                     Logger.Global.Write(SeverityLevel.Notice, $"{Stub}REMOTE ORIGINATED TESTS");
-                    RunTests(settings.RemoteOriginatedUrl, false);
+                    RunPostMessages(settings.RemoteOriginatedUrl, true);
                 }
             }
             catch (Exception e)
@@ -128,59 +130,60 @@ class Program
         return result;
     }
 
-    private static int RunTests(string gwUrl, bool rt)
+    private static int RunPostMessages(string gwUrl, bool ro)
     {
         // Should be bi-directional for both RT and RO
         int result = 0;
         gwUrl = gwUrl.Replace("/*:", "/localhost:");
         Logger.Global.Write(SeverityLevel.Notice, $"{Stub}GW URL: " + gwUrl);
 
-        string prefix = Stub + (rt ? "RT" : "RO") + " SubmitPost";
+        string id = (ro ? "RO " : "RT ");
+        string prefix = Stub + id + nameof(IMessagingApi.PostMessage);
 
         // Create profile directed at Gateway
-        var profile = CreateImpProfile(gwUrl, rt, false);
-        using var client = new ImpHttpClient(profile, true);
+        var profile = CreateClientProfile(id, gwUrl, ro);
+        using var client = new ImpClient(profile);
 
-        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (no Category)");
-        var sub = CreateSubmit(rt, false);
-        result += AssertOK(client.SubmitPostRequest(sub, out SubmitResponse resp), resp);
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (no Tag)");
+        var msg = CreateMessage(TestId, ro);
+        result += AssertOK(client.PostMessage(msg));
 
-        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (with Category)");
-        sub = CreateSubmit(rt, true);
-        result += AssertOK(client.SubmitPostRequest(sub, out resp), resp);
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (with Tag)");
+        msg = CreateMessage(TagId, ro);
+        msg.Tag = TagId;
+        result += AssertOK(client.PostMessage(msg));
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (with MsgId)");
-        sub = CreateSubmit(rt, false, "MSG1234567890");
-        result += AssertOK(client.SubmitPostRequest(sub, out resp), resp, "MSG1234567890");
+        msg = CreateMessage(TestId, ro, "MSG1234567890");
+        result += AssertOK(client.PostMessage(msg), "MSG1234567890");
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid name)");
-        sub = CreateSubmit(rt, false);
-        sub.GroupId = "InvalidName";
-        sub.UserName = "InvalidName";
-        result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
+        msg = CreateMessage(TestId, ro);
+        msg.GroupId = "InvalidName";
+        msg.GatewayId = "InvalidName";
+        msg.UserName = "InvalidName";
+        result += AssertExpect(client.PostMessage(msg), HttpStatusCode.BadRequest);
 
-        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid category)");
-        sub = CreateSubmit(rt, true);
-        sub.Tag = "InvalidCategory";
-        result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.BadRequest, resp);
+        Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid tag)");
+        msg = CreateMessage(TagId, ro);
+        msg.Tag = "InvalidTag";
+        result += AssertExpect(client.PostMessage(msg), HttpStatusCode.BadRequest);
 
         Logger.Global.Write(SeverityLevel.Notice, $"{prefix} (invalid authentication)");
-        sub = CreateSubmit(rt, false);
-        sub.GroupId = AuthFailNameId;
-        sub.UserName = AuthFailNameId;
-        result += AssertExpect(client.SubmitPostRequest(sub, out resp), HttpStatusCode.Unauthorized, resp);
+        msg = CreateMessage(AuthFailId, ro);
+        result += AssertExpect(client.PostMessage(msg), HttpStatusCode.Unauthorized);
 
         return result;
     }
 
-    private static int AssertExpect(int code, HttpStatusCode exp, SubmitResponse resp)
+    private static int AssertExpect(ImpResponse resp, HttpStatusCode exp)
     {
-        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}StatusCode: " + code + " (" + (HttpStatusCode)code + ")");
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}StatusCode: " + resp.Status);
 
-        if (code != (int)exp)
+        if (resp.Status != exp)
         {
-            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED {exp} {(int)exp} expected, but {code} received");
-            Logger.Global.Write(SeverityLevel.Error, $"{Stub}{nameof(resp.ErrorReason)} = {resp.ErrorReason}");
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - {exp} expected, but {resp.Status} received");
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}{nameof(resp.Content)} = {resp.Content}");
 
             return 1;
         }
@@ -189,24 +192,24 @@ class Program
         return 0;
     }
 
-    private static int AssertOK(int code, SubmitResponse resp, string? expectId = null)
+    private static int AssertOK(ImpResponse resp, string? expectId = null)
     {
-        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}StatusCode = " + code + " (" + (HttpStatusCode)code + ")");
-        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}MsgId = " + resp.MsgId);
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}Status = " + resp.Status);
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}Content = " + resp.Content);
 
-        if (code != 200)
+        if (resp.Status != HttpStatusCode.OK)
         {
             Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - " + resp);
             return 1;
         }
 
-        if (string.IsNullOrWhiteSpace(resp.MsgId))
+        if (string.IsNullOrWhiteSpace(resp.Content))
         {
-            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - MsgId empty");
+            Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - Content empty");
             return 1;
         }
 
-        if (expectId != null && expectId != resp.MsgId)
+        if (expectId != null && expectId != resp.Content)
         {
             Logger.Global.Write(SeverityLevel.Error, $"{Stub}FAILED - Expected MsgId: " + expectId);
             return 1;
@@ -216,60 +219,141 @@ class Program
         return 0;
     }
 
-    private static void WriteRoutes(bool rt)
+    private static string GetId(string id, bool ro)
     {
-        var addr = RemoteUrl;
-        var fname = "./RtRoute.json";
-
-        if (!rt)
-        {
-            addr = LocalUrl;
-            fname = "./RoRoute.json";
-        }
-
-        var list = new List<ClientProfile>();
-        list.Add(CreateImpProfile(addr, rt, false));
-        list.Add(CreateImpProfile(addr, rt, true));
-
-        var temp = CreateImpProfile(addr, rt, false);
-        temp.NameId = AuthFailNameId;
-        temp.Authentication = $"SECRET=123ABC";
-        list.Add(temp);
-
-        var s = JsonSerializer.Serialize(list.ToArray());
-        File.WriteAllText(fname, s);
+        return id + (ro ? "-ro" : "-rt");
     }
 
-    private static ClientProfile CreateImpProfile(string addr, bool rt, bool hasCategory)
+    private static string GetId(string id, bool ro, out string addr)
     {
-        var p = new ClientProfile();
-        p.BaseAddress = addr;
+        if (ro)
+        {
+            addr = LocalUrl;
+            return id + "-ro";
+        }
 
-        p.NameId = hasCategory ? TestNameWithCatId : TestNameId;
-        p.Categories = hasCategory ? TestCategory : null;
+        addr = RemoteUrl;
+        return id + "-rt";
+    }
+
+    private static void WriteRoutesAndClients()
+    {
+        var clist = new List<NamedClientProfile>();
+
+        var c = CreateClientProfile(TestId, false);
+        clist.Add(c);
+
+        c = CreateClientProfile(TagId, false);
+        clist.Add(c);
+
+        c = CreateClientProfile(StubId, false);
+        c.Kind = ClientKind.Stub;
+        clist.Add(c);
+
+        c = CreateClientProfile(TestId, true);
+        clist.Add(c);
+
+        c = CreateClientProfile(TagId, true);
+        clist.Add(c);
+
+        c = CreateClientProfile(StubId, true);
+        c.Kind = ClientKind.Stub;
+        clist.Add(c);
+
+        var s = JsonSerializer.Serialize(clist.ToArray());
+        File.WriteAllText("./" + ProfileDatabase.ClientTable + ".json", s);
+
+
+        var rlist = new List<RouteProfile>();
+
+        var r = CreateRouteProfile(false, false);
+        rlist.Add(r);
+
+        r = CreateRouteProfile(false, true);
+        rlist.Add(r);
+
+        r = CreateRouteProfile(true, false);
+        rlist.Add(r);
+
+        r = CreateRouteProfile(true, true);
+        rlist.Add(r);
+
+        r = new RouteProfile();
+        r.IsRemoteOriginated = true;
+        r.Id = GetId(AuthFailId, r.IsRemoteOriginated);
+        r.Secret = $"SECRET=InvalidHdueeet";
+        r.Clients = GetId(TestId, r.IsRemoteOriginated);
+        rlist.Add(r);
+
+        r = new RouteProfile();
+        r.IsRemoteOriginated = false;
+        r.Id = GetId(AuthFailId, r.IsRemoteOriginated);
+        r.Secret = $"SECRET=InvalidHdueeet";
+        r.Clients = GetId(TestId, r.IsRemoteOriginated);
+        rlist.Add(r);
+
+        s = JsonSerializer.Serialize(rlist.ToArray());
+        File.WriteAllText("./" + ProfileDatabase.RouteTable + ".json", s);
+    }
+
+    private static NamedClientProfile CreateClientProfile(string id, string addr, bool ro)
+    {
+        var p = CreateClientProfile(id, ro);
+        p.BaseAddress = addr;
+        return p;
+    }
+
+    private static NamedClientProfile CreateClientProfile(string id, bool ro)
+    {
+        var p = new NamedClientProfile();
+        p.Id = GetId(TestId, false, out string addr);
+        p.BaseAddress = addr;
 
         // Disable for local tests
         p.DisableSslValidation = true;
 
         // Unique authentication based on values
-        p.Authentication = $"SECRET=123{rt.GetHashCode()}";
+        p.Secret = $"SECRET=123{ro.GetHashCode()}";
 
-        p.Api = ClientFactory.ImpV1;
+        p.Kind = ClientKind.ImpV1;
         p.UserAgent = "Implink";
         return p;
     }
 
-    private static SubmitPost CreateSubmit(bool rt, bool hasCategory, string? msgId = null)
+    private static RouteProfile CreateRouteProfile(bool ro, bool hasTag)
     {
-        var s = new SubmitPost();
-        var name = hasCategory ? TestNameWithCatId : TestNameId;;
-        s.GroupId = name;
-        s.UserName = name;
-        s.Tag = hasCategory ? TestCategory : null;
-        s.MsgId = msgId;
-        s.Text = "Test message";
+        var p = new RouteProfile();
+        p.IsRemoteOriginated = ro;
+        p.Secret = $"SECRET=123{ro.GetHashCode()}";
 
-        return s;
+        if (hasTag)
+        {
+            var id = GetId(TagId, ro);
+            p.Id = id;
+            p.Clients = id;
+            p.Tags = "T1," + id + ",T3";
+        }
+        else
+        {
+            var id = GetId(TestId, ro);
+
+            p.Id = id;
+            p.Clients = id + "," + GetId(StubId, ro) + ",InvalidClient";
+        }
+
+        return p;
+    }
+
+    private static ImpMessage CreateMessage(string id, bool ro, string? msgId = null)
+    {
+        var msg = new ImpMessage();
+        msg.GroupId = id;
+        msg.GatewayId = id;
+        msg.UserName = id;
+        msg.MsgId = msgId;
+        msg.Text = "Test message";
+
+        return msg;
     }
 
     private static bool HandleArgsContinue(ArgumentParser parser)

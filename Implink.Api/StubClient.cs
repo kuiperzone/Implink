@@ -21,7 +21,7 @@
 using System.Net;
 using KuiperZone.Utility.Yaal;
 
-namespace KuiperZone.Implink.Api.Thirdparty;
+namespace KuiperZone.Implink.Api;
 
 /// <summary>
 /// Implementation of <see cref="IMessagingClient"/> for a test stub. No messages are sent.
@@ -53,14 +53,20 @@ public sealed class StubClient : IMessagingClient, IDisposable
     {
         Logger.Global.Debug("Sending: " + request.ToString());
 
-        if (Enum.TryParse<HttpStatusCode>(request.Text, true, out HttpStatusCode status))
+        // Follow incoming text -- allow detection on receipt
+        if (!Enum.TryParse<HttpStatusCode>(request.Text, true, out HttpStatusCode status))
         {
-            return new ImpResponse(status);
+            status = HttpStatusCode.OK;
         }
 
         var msgId = "Stub-" + Interlocked.Increment(ref _respCounter);
-        return new ImpResponse(status);
 
+        if (!string.IsNullOrWhiteSpace(request.MsgId))
+        {
+            return new ImpResponse(status, request.MsgId);
+        }
+
+        return new ImpResponse(status, msgId);
     }
 
     /// <summary>

@@ -35,9 +35,9 @@ public class RouteProfile : Jsonizable, IReadOnlyRouteProfile, IReadOnlySecretPr
     /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.IsRemoteOriginated"/> and provides a setter.
     /// </summary>
-    public bool IsRemoteOriginated { get; }
+    public bool IsRemoteOriginated { get; set; }
 
-     /// <summary>
+    /// <summary>
     /// Implements <see cref="IReadOnlyRouteProfile.Enabled"/> and provides a setter.
     /// </summary>
     public bool Enabled { get; set; } = true;
@@ -53,7 +53,7 @@ public class RouteProfile : Jsonizable, IReadOnlyRouteProfile, IReadOnlySecretPr
     public string? Tags { get; set; }
 
     /// <summary>
-    /// Implements <see cref="IReadOnlySecret.Secret"/> and provides a setter.
+    /// Implements <see cref="IReadOnlySecretProfile.Secret"/> and provides a setter.
     /// </summary>
     public string? Secret { get; set; }
 

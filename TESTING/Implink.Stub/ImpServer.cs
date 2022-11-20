@@ -59,7 +59,7 @@ public class ImpServer : IDisposable
         _app = builder.Build();
 
         // https://www.koderdojo.com/blog/asp-net-core-routing-and-routebuilder-mapget-for-calculating-a-factorial
-        _app.MapPost("/" + nameof(SubmitPost), SubmitPostHandler);
+        _app.MapPost("/" + nameof(IMessagingApi.PostMessage), PostMessageHandler);
 
         _app.RunAsync(ServerUrl);
     }
@@ -96,13 +96,10 @@ public class ImpServer : IDisposable
         return _app.DisposeAsync();
     }
 
-    private async Task<Task> SubmitPostHandler(HttpContext ctx)
+    private async Task<Task> PostMessageHandler(HttpContext ctx)
     {
-        int code = (int)HttpStatusCode.OK;
-        var response = new SubmitResponse();
-        response.ErrorReason = $"OK from {ServerName}";
-
-        Logger.Global.Write($"{ServerName} : {nameof(SubmitPost)} received on {ServerUrl}");
+        var resp = new ImpResponse();
+        Logger.Global.Write($"{ServerName} : {nameof(IMessagingApi.PostMessage)} received on {ServerUrl}");
 
         using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8, false);
         var body = await reader.ReadToEndAsync();
@@ -121,34 +118,34 @@ public class ImpServer : IDisposable
 
         if (authFailure == null)
         {
-            var submit = Jsonizable.Deserialize<SubmitPost>(body);
-            response.MsgId = submit.MsgId;
+            var msg = Jsonizable.Deserialize<ImpMessage>(body);
 
-            if (string.IsNullOrEmpty(submit.Text))
+            if (string.IsNullOrEmpty(msg.Text))
             {
-                code = (int)HttpStatusCode.BadRequest;
-                response.ErrorReason = "Message text empty";
+                resp.Status = HttpStatusCode.BadRequest;
+                resp.Content = "Message text empty";
             }
         }
         else
         {
-            code = (int)HttpStatusCode.Unauthorized;
-            response.ErrorReason = authFailure;
+            resp.Status = HttpStatusCode.Unauthorized;
+            resp.Content = authFailure;
         }
 
-        return WriteResponseAsync(ctx.Response, code, response.ToString());
+        return WriteResponseAsync(ctx.Response, resp);
     }
 
-    private Task WriteResponseAsync(HttpResponse resp, int code, string? body)
+    private Task WriteResponseAsync(HttpResponse httpResp, ImpResponse impResp)
     {
-        body ??= string.Empty;
-        Logger.Global.Write($"{ServerName} : RES CODE: {(HttpStatusCode)code}");
-        Logger.Global.Write($"{ServerName} : RES BODY: {body}");
+        var body = impResp.ToString();
+        Logger.Global.Write(SeverityLevel.Notice, "RESPONSE: " + body);
 
-        resp.StatusCode = code;
-        resp.ContentType = MediaTypeNames.Application.Json;
-        resp.ContentLength = Encoding.UTF8.GetByteCount(body);
-        return resp.WriteAsync(body, new CancellationTokenSource(1500).Token);
+        httpResp.StatusCode = (int)impResp.Status;
+        httpResp.ContentType = MediaTypeNames.Application.Json;
+        httpResp.ContentLength = Encoding.UTF8.GetByteCount(body);
+
+        Logger.Global.Debug($"Writing response");
+        return httpResp.WriteAsync(body, new CancellationTokenSource(1500).Token);
     }
 
 }
