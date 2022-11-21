@@ -90,7 +90,7 @@ public sealed class TwitterClient : IMessagingClient, IDisposable
             lock (_syncObj)
             {
                 var rslt = GetTokenNoSync().Statuses.UpdateAsync(temp, new CancellationTokenSource(Profile.Timeout).Token).Result;
-                return new ImpResponse(HttpStatusCode.OK, rslt.Id.ToString(CultureInfo.InvariantCulture));
+                return new ImpResponse(rslt.Id.ToString(CultureInfo.InvariantCulture));
             }
         }
         catch (TwitterException e)

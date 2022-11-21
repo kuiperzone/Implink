@@ -56,17 +56,15 @@ public sealed class StubClient : IMessagingClient, IDisposable
         // Follow incoming text -- allow detection on receipt
         if (!Enum.TryParse<HttpStatusCode>(request.Text, true, out HttpStatusCode status))
         {
-            status = HttpStatusCode.OK;
+            return new ImpResponse(status);
         }
-
-        var msgId = "Stub-" + Interlocked.Increment(ref _respCounter);
 
         if (!string.IsNullOrWhiteSpace(request.MsgId))
         {
-            return new ImpResponse(status, request.MsgId);
+            return new ImpResponse(request.MsgId);
         }
 
-        return new ImpResponse(status, msgId);
+        return new ImpResponse("Stub-" + Interlocked.Increment(ref _respCounter));
     }
 
     /// <summary>

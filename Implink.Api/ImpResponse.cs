@@ -43,12 +43,12 @@ public class ImpResponse : Jsonizable
     }
 
     /// <summary>
-    /// Constructor.
+    /// Constructor with status code.
     /// </summary>
-    public ImpResponse(HttpStatusCode status, string? content = null)
+    public ImpResponse(HttpStatusCode status, string? error = null)
     {
         Status = status;
-        Content = content;
+        ErrorInfo = error;
     }
 
     /// <summary>
@@ -67,11 +67,24 @@ public class ImpResponse : Jsonizable
     public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
 
     /// <summary>
-    /// Gets or sets a response message. If Status is not OK 200, this value may be used to convey an "errror reason".
-    /// On success, its meaning will depend on the request kind. For <see cref="ImpMessage"/>, it provides the
-    /// message id on success.
+    /// Gets or sets error or warning info or reason -- additional information for diagnostic purposes.
+    /// </summary>
+    public string? ErrorInfo { get; set; }
+
+    /// <summary>
+    /// Gets or sets a response message. It's interpretation may depend on the request type. For
+    /// <see cref="IMessagingApi.PostMessage(ImpMessage)"/>, it provides the message id on success.
     /// </summary>
     public string? Content { get; set; }
+
+    /// <summary>
+    /// Short-hand to check for success.
+    /// </summary>
+    public bool IsSuccess()
+    {
+        var i = (int)Status;
+        return i >= 200 && i < 300;
+    }
 
 }
 

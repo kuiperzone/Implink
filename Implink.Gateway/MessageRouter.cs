@@ -140,43 +140,34 @@ public class MessageRouter : IEquatable<IReadOnlyRouteProfile>
             }
 
             int success = 0;
-            var errors = new List<string>();
-
-            // Default succes with msgId
-            var resp = new ImpResponse(request.MsgId);
+            var error = HttpStatusCode.OK;
+            var info = new List<string>();
 
             foreach (var item in Clients)
             {
+                var s = HttpStatusCode.OK;
+
                 // Replies supported for imp only
                 if (!string.IsNullOrEmpty(request.ParentMsgId) && !item.Profile.Kind.IsImp())
                 {
-                    // Skip but do not treat as error
-                    failMsg = $"Reply messages not supported for {item.Profile.Kind} client (skipped)";
-                    Logger.Global.Debug(failMsg);
-                    errors.Add(failMsg);
+                    s = HttpStatusCode.BadRequest;
+                    info.Add($"Reply messages not supported for {item.Profile.Kind} client");
+                    Logger.Global.Debug(info[^1]);
                 }
                 else
                 if (WaitOnForward)
                 {
                     Logger.Global.Debug($"Forward and wait for response for {item.Profile.Kind}");
-
                     var temp = PostMessageToClient(item, request);
+                    s = temp.Status;
 
-                    if (temp.Status == HttpStatusCode.OK)
+                    if (s == HttpStatusCode.OK)
                     {
-                        Logger.Global.Debug($"Status OK");
                         success += 1;
                     }
                     else
                     {
-                        errors.Add(temp.Content ?? temp.Status.ToString());
-                        Logger.Global.Debug(errors[^1]);
-
-                        if (resp.Status == HttpStatusCode.OK)
-                        {
-                            // First error defines return status
-                            resp.Status = temp.Status;
-                        }
+                        info.Add(temp.ErrorInfo ?? s.ToString());
                     }
                 }
                 else
@@ -185,26 +176,43 @@ public class MessageRouter : IEquatable<IReadOnlyRouteProfile>
                     Logger.Global.Debug($"Queue worker thread for {item.Profile.Kind}");
                     ThreadPool.QueueUserWorkItem(SubmitThread, Tuple.Create(item, request));
                 }
+
+                // Keep only first error
+                if (error == HttpStatusCode.OK)
+                {
+                    error = s;
+                }
             }
 
-            if (resp.Status == HttpStatusCode.OK && success == 0)
+            if (error == HttpStatusCode.OK && success == 0)
             {
                 // Can happen with ParentMsgId
-                resp.Status = HttpStatusCode.BadRequest;
+                error = HttpStatusCode.BadRequest;
             }
 
-            if (resp.Status != HttpStatusCode.OK)
+            // Reponse OK if one post message succeeds,
+            // but will contain ErrorInfo (if any).
+            var resp = new ImpResponse(request.MsgId);
+
+            if (success == 0)
             {
-                if (errors.Count > 1)
+                resp.Status = HttpStatusCode.BadRequest;
+
+                if (error != HttpStatusCode.OK)
                 {
-                    // Combine responses
-                    resp.Content = success + " of " + Clients.Count + " succeeded: " + string.Join(", ", errors);
+                    resp.Status = error;
                 }
-                else
-                if (errors.Count == 1)
-                {
-                    resp.Content = errors[0];
-                }
+            }
+
+            if (info.Count > 1)
+            {
+                // Combine responses
+                resp.ErrorInfo = success + " of " + Clients.Count + " succeeded: " + string.Join(", ", info);
+            }
+            else
+            if (info.Count > 0)
+            {
+                resp.ErrorInfo = info[0];
             }
 
             return resp;
@@ -314,7 +322,7 @@ public class MessageRouter : IEquatable<IReadOnlyRouteProfile>
 
         if (resp.Status != HttpStatusCode.OK)
         {
-            var msg = $"{nameof(PostMessage)} failed to {prof.BaseAddress}, " + $"Status {resp.Status}, {resp.Content}";
+            var msg = $"{nameof(PostMessage)} failed to {prof.BaseAddress}, Status {resp.Status}, {resp.Content}";
             Logger.Global.Write(SeverityLevel.Notice, msg);
         }
 
