@@ -88,14 +88,14 @@ class Program
                 if (!string.IsNullOrWhiteSpace(settings.RemoteTerminatedUrl))
                 {
                     Logger.Global.Debug("Creating RemoteTerminated app");
-                    apps.Add(new GatewayApp(args, settings, true));
+                    apps.Add(new GatewayApp(settings, false));
                 }
 
 
                 if (!string.IsNullOrWhiteSpace(settings.RemoteOriginatedUrl))
                 {
                     Logger.Global.Debug("Creating RemoteOriginated app");
-                    apps.Add(new GatewayApp(args, settings, false));
+                    apps.Add(new GatewayApp(settings, true));
                 }
 
                 Logger.Global.Write("Running web applications");
@@ -105,6 +105,7 @@ class Program
             }
             catch (Exception e)
             {
+                Logger.Global.Debug(e);
                 Logger.Global.Write(e);
                 return 1;
             }
@@ -120,7 +121,7 @@ class Program
             Console.WriteLine("Usage:");
             Console.WriteLine("    -h, --help: Help information");
             Console.WriteLine("    -v, --version: Version information");
-            Console.WriteLine("    -w, --forwardWait: Override ForwardWait (test only)");
+            Console.WriteLine("    -w, --waitOnForward: Wait on forward messages (test only)");
             Console.WriteLine("    -d, --directory=dir: Override database connection with file directory (test only)");
             return false;
         }
@@ -133,9 +134,9 @@ class Program
             return false;
         }
 
-        if (parser.GetOrDefault("w", "") != "" || parser.GetOrDefault("forwardWait", "") != "")
+        if (parser.GetOrDefault("w", "") != "" || parser.GetOrDefault("waitOnForward", "") != "")
         {
-            ForwardWait = parser.GetOrDefault("w", false) || parser.GetOrDefault("forwardWait", false);
+            ForwardWait = parser.GetOrDefault("w", false) || parser.GetOrDefault("waitOnForward", false);
         }
 
         ProfileDirectory = parser["d"] ?? parser["directory"];

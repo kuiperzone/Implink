@@ -88,10 +88,10 @@ class Program
 
                 // Remote server verifies athentication
                 WriteRoutesAndClients();
-                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpAuthentication(CreateClientProfile("id", true)));
+                using var remoteServer = new ImpServer(RemoteUrl, true, new ImpAuthentication(CreateClientProfile("id", false)));
 
                 // Local on LAN, so no authentication
-                using var localServer = new ImpServer(LocalUrl, false);
+                using var localServer = new ImpServer(LocalUrl, true);
 
                 Logger.Global.Write("Starting Implink");
                 impThread = new(StartGateway);
@@ -178,7 +178,7 @@ class Program
 
     private static int AssertExpect(ImpResponse resp, HttpStatusCode exp)
     {
-        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}StatusCode: " + resp.Status);
+        Logger.Global.Write(SeverityLevel.Notice, $"{Stub}Status: " + resp.Status);
 
         if (resp.Status != exp)
         {
@@ -306,13 +306,13 @@ class Program
     private static NamedClientProfile CreateClientProfile(string id, bool ro)
     {
         var p = new NamedClientProfile();
-        p.Id = GetId(TestId, false, out string addr);
+        p.Id = GetId(id, ro, out string addr);
         p.BaseAddress = addr;
 
         // Disable for local tests
         p.DisableSslValidation = true;
 
-        // Unique authentication based on values
+        // Athentication based on direction
         p.Secret = $"SECRET=123{ro.GetHashCode()}";
 
         p.Kind = ClientKind.ImpV1;
@@ -331,7 +331,7 @@ class Program
             var id = GetId(TagId, ro);
             p.Id = id;
             p.Clients = id;
-            p.Tags = "T1," + id + ",T3";
+            p.Tags = "T1," + TagId + ",T3";
         }
         else
         {
@@ -347,6 +347,7 @@ class Program
     private static ImpMessage CreateMessage(string id, bool ro, string? msgId = null)
     {
         var msg = new ImpMessage();
+        id = GetId(id, ro);
         msg.GroupId = id;
         msg.GatewayId = id;
         msg.UserName = id;
@@ -380,7 +381,7 @@ class Program
         var info = new ProcessStartInfo
         {
             FileName = "Implink.Gateway",
-            Arguments = "--forwardWait --directory=./",
+            Arguments = "-w -d=./",
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

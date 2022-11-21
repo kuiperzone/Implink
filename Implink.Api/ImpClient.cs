@@ -51,6 +51,13 @@ public sealed class ImpClient : HttpMessagingClient
     /// </summary>
     protected override ImpResponse TranslateResponse(HttpStatusCode status, string body)
     {
-        return new ImpResponse(status, body);
+        var resp = Jsonizable.Deserialize<ImpResponse>(body);
+
+        if (resp.Status != status)
+        {
+            throw new InvalidOperationException("Status mismatch in response body");
+        }
+
+        return resp;
     }
 }

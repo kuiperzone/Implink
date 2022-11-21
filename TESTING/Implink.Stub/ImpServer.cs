@@ -120,7 +120,20 @@ public class ImpServer : IDisposable
         {
             var msg = Jsonizable.Deserialize<ImpMessage>(body);
 
-            if (string.IsNullOrEmpty(msg.Text))
+            if (!string.IsNullOrEmpty(msg.Text))
+            {
+                if (string.IsNullOrEmpty(msg.MsgId))
+                {
+                    resp.Status = HttpStatusCode.BadRequest;
+                    resp.Content = "MsgId empty";
+                }
+                else
+                {
+                    // OK
+                    resp.Content = msg.MsgId;
+                }
+            }
+            else
             {
                 resp.Status = HttpStatusCode.BadRequest;
                 resp.Content = "Message text empty";

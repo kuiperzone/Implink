@@ -45,7 +45,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
     /// <summary>
     /// Constructor.
     /// </summary>
-    public GatewayApp(string[] args, IReadOnlyAppSettings settings, bool remoteOriginated)
+    public GatewayApp(IReadOnlyAppSettings settings, bool remoteOriginated)
     {
         Settings = settings;
         IsRemoteOriginated = remoteOriginated;
@@ -69,7 +69,7 @@ public class GatewayApp : IDisposable, IAsyncDisposable
             throw new ArgumentException($"Undefined in {nameof(ServerUrl)} appsettings");
         }
 
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder();
 
         // Not using
         builder.Logging.ClearProviders();

@@ -138,7 +138,7 @@ public sealed class ProfileDatabase : IDisposable
     {
         if (_directory != null)
         {
-            return LoadFile<NamedClientProfile>(ClientTable);
+            return LoadFile<NamedClientProfile>(ClientTable + ".json");
         }
 
         return Query<NamedClientProfile>("SELECT STATEMENT TBD");
@@ -153,7 +153,7 @@ public sealed class ProfileDatabase : IDisposable
         {
             var temp = new List<RouteProfile>();
 
-            foreach (var item in LoadFile<RouteProfile>(RouteTable))
+            foreach (var item in LoadFile<RouteProfile>(RouteTable + ".json"))
             {
                 if (item.IsRemoteOriginated == remoteOriginated)
                 {

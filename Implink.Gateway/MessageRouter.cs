@@ -140,8 +140,10 @@ public class MessageRouter : IEquatable<IReadOnlyRouteProfile>
             }
 
             int success = 0;
-            var resp = new ImpResponse();
             var errors = new List<string>();
+
+            // Default succes with msgId
+            var resp = new ImpResponse(request.MsgId);
 
             foreach (var item in Clients)
             {
@@ -263,7 +265,7 @@ public class MessageRouter : IEquatable<IReadOnlyRouteProfile>
     private static IEnumerable<NamedClientApi> SelectClients(IReadOnlyRouteProfile profile,
         IReadOnlyDictionary<string, NamedClientApi> clients)
     {
-        Logger.Global.Write(SeverityLevel.Notice, $"New route {profile.Id}");
+        Logger.Global.Debug("Select for route: " + profile.Id);
 
         if (!profile.Enabled)
         {
@@ -274,9 +276,12 @@ public class MessageRouter : IEquatable<IReadOnlyRouteProfile>
 
         foreach (var item in StringParser.ToSet(profile.Clients))
         {
+            Logger.Global.Debug("Identify client: " + item);
+
             if (clients.TryGetValue(item, out NamedClientApi? api))
             {
                 list.Add(api);
+                Logger.Global.Debug("Add client to route OK");
             }
             else
             {
